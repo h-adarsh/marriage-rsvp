@@ -6,6 +6,7 @@ import { authRouter } from './routes/auth';
 import { weddingsRouter } from './routes/weddings';
 import { functionsRouter } from './routes/functions';
 import { householdsRouter } from './routes/households';
+import { rsvpRouter } from './routes/rsvp';
 import { csrfProtection, getAllowedOrigins } from './middleware/csrf';
 import { parseTrustProxy } from './utils/proxy';
 
@@ -51,6 +52,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/weddings', weddingsRouter);
 app.use('/api/functions', functionsRouter);
 app.use('/api/households', householdsRouter);
+app.use('/api/rsvp', rsvpRouter);
 
 // Centralized error handler
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
