@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import crypto from 'crypto';
 import { eq, and } from 'drizzle-orm';
@@ -472,53 +472,57 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
     expect(logs[0].action).toBe('reset_rsvp');
   });
 
-  it('proves database transaction rollback: mutations are rolled back when an error is thrown midway', async () => {
-    // 1. Insert a test household assignment
-    const testHh = await request(app)
-      .post(`/api/weddings/${weddingAId}/households`)
-      .set('Cookie', cookieA)
-      .send({ name: "Rollback Test Family", primaryContactName: "Test Contact", phone: "+919876543288", expectedPartySize: 2 });
-    const testHhId = testHh.body.id;
-
-    // 2. Assign to functionA
+  it('proves the invitations route transaction rolls back deletions if subsequent insert fails midway', async () => {
+    // 1. Ensure householdA1 is invited and householdA2 is not invited
     await request(app)
       .post(`/api/functions/${functionAId}/invitations`)
       .set('Cookie', cookieA)
-      .send({ add: [testHhId] });
+      .send({ householdIds: [householdA1Id] });
 
-    // Verify assignment exists before transaction
-    const before = await db
-      .select()
-      .from(householdFunctions)
-      .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
-    expect(before).toHaveLength(1);
+    // Verify initial state
+    const beforeRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    expect(beforeRes.body.find((h: any) => h.id === householdA1Id)?.invited).toBe(true);
+    expect(beforeRes.body.find((h: any) => h.id === householdA2Id)?.invited).toBe(false);
 
-    // 3. Attempt a transaction that executes a DELETE and then throws an error
-    await expect(
-      db.transaction(async (tx) => {
-        // Step A: Execute DELETE inside tx
-        await tx
-          .delete(householdFunctions)
-          .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
+    // 2. Spy on db.transaction to let tx.delete succeed, but force tx.insert to fail midway
+    const realTransaction = db.transaction.bind(db);
+    const txSpy = vi.spyOn(db, 'transaction').mockImplementation(async (callback) => {
+      return realTransaction(async (tx) => {
+        const realInsert = tx.insert.bind(tx);
+        (tx as any).insert = (table: any) => {
+          if (table === householdFunctions) {
+            throw new Error('Simulated database write error during assignment insert');
+          }
+          return realInsert(table);
+        };
+        return callback(tx);
+      });
+    });
 
-        // Verify inside tx that the row was deleted
-        const insideTx = await tx
-          .select()
-          .from(householdFunctions)
-          .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
-        expect(insideTx).toHaveLength(0);
+    // 3. Dispatch HTTP request to unassign A1 and assign A2
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [householdA1Id], add: [householdA2Id] });
 
-        // Step B: Force an intentional error to trigger rollback
-        throw new Error('Simulated mid-transaction database failure');
-      })
-    ).rejects.toThrow('Simulated mid-transaction database failure');
+    // Route catches error and returns 500
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/failed to update function invitations/i);
 
-    // 4. Verify outside the transaction that the row STILL EXISTS (rollback succeeded)
-    const after = await db
-      .select()
-      .from(householdFunctions)
-      .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
-    expect(after).toHaveLength(1);
+    // Restore the spy
+    txSpy.mockRestore();
+
+    // 4. PROOF: Query the database to verify householdA1Id was NOT uninvited because the route's transaction rolled back!
+    const afterRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a1After = afterRes.body.find((h: any) => h.id === householdA1Id);
+    const a2After = afterRes.body.find((h: any) => h.id === householdA2Id);
+
+    expect(a1After?.invited).toBe(true);
+    expect(a2After?.invited).toBe(false);
   });
 });
 

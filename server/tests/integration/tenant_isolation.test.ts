@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
+import crypto from 'crypto';
+import { eq } from 'drizzle-orm';
 import { app } from '../../src/app';
+import { db } from '../../src/db';
+import { auditLog } from '../../src/db/schema';
 
 describe('Multi-Tenant Isolation & Security (Planner A vs Planner B)', () => {
   let cookieA: string;
@@ -193,5 +197,48 @@ describe('Multi-Tenant Isolation & Security (Planner A vs Planner B)', () => {
 
     const resHhs = await request(app).get(`/api/weddings/${weddingAId}/households`);
     expect(resHhs.status).toBe(401);
+  });
+
+  it('cascades deletion of wedding to automatically remove all associated audit_log entries', async () => {
+    // 1. Planner A creates a disposable wedding for cascade testing
+    const wedRes = await request(app)
+      .post('/api/weddings')
+      .set('Cookie', cookieA)
+      .send({
+        title: 'Cascade Test Wedding',
+        coupleNames: 'Cascade & Partner',
+        startDate: '2026-12-20',
+        endDate: '2026-12-22',
+      });
+    expect(wedRes.status).toBe(201);
+    const tempWeddingId = wedRes.body.id;
+
+    // 2. Insert audit log entries associated with this wedding
+    const auditId = crypto.randomUUID();
+    await db.insert(auditLog).values({
+      id: auditId,
+      weddingId: tempWeddingId,
+      actorType: 'planner',
+      actorId: 'test-planner',
+      action: 'reset_rsvp',
+      entityType: 'rsvp',
+      entityId: 'some-rsvp-id',
+      oldValues: { status: 'yes', partySize: 2 },
+      newValues: null,
+    });
+
+    // Verify audit log entry exists
+    const beforeAudit = await db.select().from(auditLog).where(eq(auditLog.id, auditId));
+    expect(beforeAudit).toHaveLength(1);
+
+    // 3. Delete the wedding
+    const delRes = await request(app)
+      .delete(`/api/weddings/${tempWeddingId}`)
+      .set('Cookie', cookieA);
+    expect(delRes.status).toBe(200);
+
+    // 4. Verify that foreign key ON DELETE CASCADE deleted the audit_log entry
+    const afterAudit = await db.select().from(auditLog).where(eq(auditLog.id, auditId));
+    expect(afterAudit).toHaveLength(0);
   });
 });
