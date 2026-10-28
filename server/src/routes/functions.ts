@@ -3,7 +3,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { eq, and, inArray, asc, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { functions, households, householdFunctions, rsvps } from '../db/schema';
+import { functions, households, householdFunctions, rsvps, auditLog } from '../db/schema';
 import { requireAuth } from '../middleware/auth';
 import { getOwnedFunction } from '../middleware/tenant';
 
@@ -281,12 +281,26 @@ functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Pr
             );
           }
 
-          // For households that replied 'no', remove their decline RSVP record
+          // For households that replied 'no', record audit log and remove their decline RSVP record
           const declinedHouseholds = repliedRsvps
             .filter((r) => r.status === 'no')
             .map((r) => r.householdId);
 
           if (declinedHouseholds.length > 0) {
+            for (const declinedId of declinedHouseholds) {
+              await tx.insert(auditLog).values({
+                id: crypto.randomUUID(),
+                weddingId: owned.wedding.id,
+                actorType: 'planner',
+                actorId: req.user!.id,
+                action: 'uninvite_declined_household',
+                entityType: 'rsvp',
+                entityId: declinedId,
+                oldValues: { functionId, status: 'no' },
+                newValues: null,
+              });
+            }
+
             await tx
               .delete(rsvps)
               .where(
@@ -369,9 +383,35 @@ functionsRouter.post('/:id/rsvps/:householdId/reset', async (req: Request, res: 
       return;
     }
 
-    await db
-      .delete(rsvps)
-      .where(and(eq(rsvps.functionId, functionId), eq(rsvps.householdId, householdId)));
+    // Fetch existing RSVP to record in audit log before erasing
+    const [existingRsvp] = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.functionId, functionId), eq(rsvps.householdId, householdId)))
+      .limit(1);
+
+    if (existingRsvp) {
+      await db.insert(auditLog).values({
+        id: crypto.randomUUID(),
+        weddingId: owned.wedding.id,
+        actorType: 'planner',
+        actorId: req.user!.id,
+        action: 'reset_rsvp',
+        entityType: 'rsvp',
+        entityId: existingRsvp.id,
+        oldValues: {
+          status: existingRsvp.status,
+          partySize: existingRsvp.partySize,
+          vegCount: existingRsvp.vegCount,
+          nonvegCount: existingRsvp.nonvegCount,
+        },
+        newValues: null,
+      });
+
+      await db
+        .delete(rsvps)
+        .where(and(eq(rsvps.functionId, functionId), eq(rsvps.householdId, householdId)));
+    }
 
     res.json({ success: true, message: 'RSVP reset successfully' });
   } catch (error) {

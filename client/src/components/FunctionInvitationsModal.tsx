@@ -193,6 +193,11 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
   const handleResetRsvp = async (householdId: string) => {
     if (!weddingFunction) return;
 
+    const confirmed = window.confirm(
+      "Are you sure you want to reset this RSVP? This will erase the guest's response and cannot be undone."
+    );
+    if (!confirmed) return;
+
     setResettingId(householdId);
     setErrorMsg(null);
 
