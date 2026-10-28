@@ -127,8 +127,54 @@
 
 ---
 
-## 6. Verdict
-**NOT READY to move to Milestone 2.**  
-Milestone 1 has 1 Blocker (B1: Hindi/Unicode CSV failure), 3 Major bugs (B2: Multer 500 error, B3: missing `.gitignore`, B4: phone equivalence in duplicate detection), and 2 Minor bugs (B5: CSRF defense, B6: lint script).
+## 6. Verdict (Milestone 1 Resolution)
+**RESOLVED & ACCEPTED (`v0.1.1`).**  
+All 6 bugs (B1 through B6) were fixed, tested, and verified. 80 server tests passing, 0 type errors, 0 lint warnings.
 
-**Suggested next command:** `/debug`
+---
+
+# Milestone 2 Check Report (Tasks T2.1 & T2.2)
+
+**Date:** 2026-10-28  
+**Scope Checked:**
+- **T2.1**: `household_functions` backend assignment APIs with transaction atomicity, race condition prevention, input mode exclusivity, IDOR defense, and RSVP protection.
+- **T2.2**: Function invitation management frontend with checklist tabs, delta save, Reset RSVP action, and unlocked declined replies.
+- **CSV Engine Hardening**: `fileHash` integrity verification, capped integer validation, and negative unit tests for name+contact overrides.
+- **Database Test Separation**: Dedicated `wedding_rsvp_test` database routing for test isolation.
+
+---
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run typecheck` | **PASS** | 0 errors across server and client workspaces. |
+| `npm run lint` | **PASS** | 0 errors, 0 warnings across `server/src` and `client/src`. |
+| `npm test --workspace=server` | **PASS** | **14 test files, 95 passing tests** (86 → 95 tests, exactly +9 new tests covering review gaps). |
+| `manage_task list` | **PASS** | Confirmed 0 scheduled timers or cron jobs; only dev server daemon running. |
+| MySQL Schema Verification | **PASS** | `uq_household_function` confirmed in `0000_steady_texas_twister.sql` line 33 and `server/src/db/schema.ts` line 99. |
+
+---
+
+## 2. Review Findings & Fixes Matrix
+
+| Feedback Item | Issue / Gap | Fix Implemented | Verification Evidence |
+| :--- | :--- | :--- | :--- |
+| **Schedule tool audit** | Unreported `schedule` tool call in log | One-shot wait timer from step 884 ended; audited running background tasks (`manage_task list`) confirming 0 active timers or cron tasks. | `manage_task list` output: only `task-422` (dev daemon) is active. |
+| **T2.2 Dead-end tooltip** | "Cannot uninvite without resetting RSVP" with no reset feature | Built `POST /api/functions/:id/rsvps/:householdId/reset` backend endpoint and added "Reset RSVP" button in modal next to replied guests. | Tested in `function_invitations.test.ts` (reset then uninvite succeeds). |
+| **T2.2 Locking 'No' replies** | Declining has 0 headcount to protect; locking blocked planners | Unlocked 'no' replies in UI and backend: uninviting 'no' replies is permitted and deletes the decline record atomically. Only 'yes' and 'maybe' are locked. | Tested in `function_invitations.test.ts` (`allows uninviting a household that replied "no"`). |
+| **T2.2 Missing backend test** | `GET /invitations` returned `rsvpStatus` without tests | Added test in `function_invitations.test.ts` verifying uninvited, pending, yes (with headcount), and no (with 0 headcount). | `GET /api/functions/:id/invitations returns accurate rsvpStatus and partySize for all states` passes. |
+| **T2.1 Race condition** | Guest could reply between read and delete | Moved RSVP attendance check inside `db.transaction(async (tx) => { ... })` so verification and unassign are serialized and atomic. | Checked inside `tx.select().from(rsvps)...` within transaction. |
+| **T2.1 Input modes & conflicting IDs** | `add`, `remove`, and `householdIds` could be mixed or have overlapping IDs | Added Zod schema refinements enforcing mutual exclusivity (cannot mix `householdIds` with `add`/`remove`) and rejecting requests with the same ID in both `add` and `remove`. | Integration tests in `function_invitations.test.ts` assert 400 for mixed modes and overlapping IDs. |
+| **T2.1 IDOR on delta lists** | Cross-wedding check only verified `householdIds` | Updated IDOR check to verify all IDs referenced in `add`, `remove`, and `householdIds`. | Integration tests assert 400 for foreign IDs in both `add` and `remove`. |
+| **T2.1 Rollback proof** | Claimed all-or-nothing without test evidence | Added rollback test: sending a batch remove containing both an unlocked household and a locked 'yes' household causes transaction abort and proves neither was uninvited. | `proves database transaction rollback: all-or-nothing on failure` passes. |
+| **CSV Override safety** | Server did not enforce file integrity or capped integers; no negative test for name+contact | Added `fileHash` (SHA-256) check between preview and commit, capped integer validation (max 500 rows, >= 2), and negative unit test proving name+contact collisions can never be overridden. | `tests/unit/csv.test.ts` (14 passing tests, including negative test). |
+| **Test Database Separation** | Tests shared `wedding_rsvp` development database | Created `wedding_rsvp_test` in MySQL Docker container; updated `server/src/db/index.ts` to route test environment to `wedding_rsvp_test`. | All 95 server tests run against isolated test database. |
+| **Password Hygiene** | Root password was logged on command line (`-ppassword`) | Switched all Docker MySQL commands to use `MYSQL_PWD` environment variable or `.env` file; zero passwords exposed in command arguments or documentation. | Clean terminal invocations. |
+
+---
+
+## 3. Verdict
+**READY TO PROCEED TO T2.3.**  
+All review criteria for T2.1 and T2.2 are resolved, verified by automated tests (95 passing), and committed with atomic commits.
+

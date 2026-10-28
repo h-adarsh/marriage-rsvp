@@ -56,8 +56,9 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 > **As a planner**, I can select which households are invited to which specific functions so that sub-events have tailored guest lists.
 
 **Acceptance Criteria:**
-- [ ] Planner can assign or unassign households to individual functions singly or in bulk.
-- [ ] The system distinguishes between "Not Invited" (no mapping exists) and "No Response" (invited, but no RSVP submitted).
+- [x] Planner can assign or unassign households to individual functions singly or in bulk with transaction atomicity.
+- [x] The system distinguishes between "Not Invited" (no mapping exists) and "No Response" (invited, but no RSVP submitted).
+- [x] Attendance protection locks uninviting households with confirmed attendance ('yes'/'maybe'), while allowing frictionless uninviting for 'no' responses and providing a dedicated Reset RSVP action.
 - [ ] Changes to invitation assignments are recorded in the audit log.
 
 ---
@@ -136,11 +137,11 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 ---
 
 ### Milestone 2: Invitations per Function, Private Links & Mobile RSVP (Weeks 3–4)
-- **T2.1**: `household_functions` backend assignment APIs (`GET /api/functions/:id/invitations`, `POST /api/functions/:id/invitations` with bulk IDOR verification across weddings, batch cap of 500, idempotency, and protection preventing unassigning households with existing RSVPs). *[2.0h]*
-- **T2.2**: Function invitation management frontend (Assign households to functions via checklists and bulk actions). *[2.0h]*
-- **T2.3**: Public token lookup & verification service (Finds household by 128-bit token, applies probe rate-limiting, and returns uniform 404 for invalid, unknown, or expired tokens). *[1.5h]*
+- [x] **T2.1**: `household_functions` backend assignment APIs (`GET /api/functions/:id/invitations`, `POST /api/functions/:id/invitations` with bulk IDOR verification across weddings, batch cap of 500, idempotency, mode exclusivity, and protection preventing unassigning households with active RSVPs). *[2.0h]*
+- [x] **T2.2**: Function invitation management frontend (Assign households to functions via checklists, delta save, bulk actions, and Reset RSVP action). *[2.0h]*
+- **T2.3**: Public token lookup & verification service (Finds household by 128-bit token, dual-key rate limiting by IP + token, trust proxy config, returns uniform 404 for invalid/unknown tokens, minimal response payload with zero PII, anti-leak headers: `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, `X-Robots-Tag: noindex`). *[1.5h]*
 - **T2.4**: WhatsApp share link generator (`wa.me/<phone>?text=...` with personalized invite message and link on household cards). *[1.5h]*
-- **T2.4b**: Invite link revocation & token regeneration endpoint (`POST /api/households/:id/regenerate-token`, invalidates leaked token, issues new unguessable 128-bit token, tests that old token returns 404). *[1.0h]*
+- **T2.4b**: Invite link revocation & token regeneration endpoint (`POST /api/households/:id/regenerate-token`, invalidates leaked token, issues new unguessable 128-bit token, tests that old token returns 404 - must be built before public deploy). *[1.0h]*
 - **T2.5**: Public RSVP read & write API (`GET /api/rsvp/:token` returning invited functions & existing RSVPs, `POST /api/rsvp/:token` with unique `(function_id, household_id)` upsert and server-side `veg + nonveg = party_size` validation built on T2.3). *[2.0h]*
 - **T2.6**: Rate limiting, brute-force defense & token scoping tests (Verify 429 rate limit, uniform token errors, and isolation test that Household A token cannot read or modify Household B). *[1.5h]*
 - **T2.7**: Mobile-first Guest RSVP UI (Clean mobile layout, function list cards, Yes/No/Maybe selectors, veg/non-veg inputs). *[2.0h]*
