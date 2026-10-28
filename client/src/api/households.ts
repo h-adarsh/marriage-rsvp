@@ -52,6 +52,16 @@ export async function deleteHouseholdApi(
   return handleResponse<{ success: boolean; deletedId: string }>(res);
 }
 
+export async function regenerateTokenApi(
+  householdId: string
+): Promise<{ success: boolean; householdId: string; inviteToken: string; message: string }> {
+  const res = await fetch(`/api/households/${householdId}/regenerate-token`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return handleResponse<{ success: boolean; householdId: string; inviteToken: string; message: string }>(res);
+}
+
 export interface CsvImportPreviewResponse {
   dryRun: boolean;
   totalParsed: number;

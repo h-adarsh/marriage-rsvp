@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
-import { households } from '../db/schema';
+import { households, auditLog } from '../db/schema';
 import { requireAuth } from '../middleware/auth';
 import { getOwnedHousehold } from '../middleware/tenant';
 import { normalizePhone } from '../services/csv';
+import { generateInviteToken } from '../utils/auth';
 
 export const householdsRouter = Router();
 
@@ -78,5 +80,51 @@ householdsRouter.delete('/:id', async (req: Request, res: Response): Promise<voi
   } catch (error) {
     console.error('[households] Delete error:', error);
     res.status(500).json({ error: 'Failed to delete household' });
+  }
+});
+
+/**
+ * POST /api/households/:id/regenerate-token - Revoke old invite token and generate a new unguessable 128-bit token
+ */
+householdsRouter.post('/:id/regenerate-token', async (req: Request, res: Response): Promise<void> => {
+  const householdId = req.params.id;
+
+  try {
+    const owned = await getOwnedHousehold(householdId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Household not found' });
+      return;
+    }
+
+    const newToken = generateInviteToken();
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(households)
+        .set({ inviteToken: newToken })
+        .where(eq(households.id, householdId));
+
+      await tx.insert(auditLog).values({
+        id: crypto.randomUUID(),
+        weddingId: owned.wedding.id,
+        actorType: 'planner',
+        actorId: req.user!.id,
+        action: 'regenerate_token',
+        entityType: 'household',
+        entityId: householdId,
+        oldValues: { inviteToken: owned.household.inviteToken },
+        newValues: { inviteToken: newToken },
+      });
+    });
+
+    res.json({
+      success: true,
+      householdId,
+      inviteToken: newToken,
+      message: 'Invite token regenerated successfully. The old link is now revoked.',
+    });
+  } catch (error) {
+    console.error('[households] Regenerate token error:', error);
+    res.status(500).json({ error: 'Failed to regenerate invite token' });
   }
 });

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Household } from '../types/household';
-import { deleteHouseholdApi } from '../api/households';
+import { deleteHouseholdApi, regenerateTokenApi } from '../api/households';
 import {
   Search,
   Users,
@@ -11,12 +11,14 @@ import {
   Trash2,
   Plus,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 
 interface HouseholdListProps {
   weddingId: string;
   households: Household[];
   onHouseholdDeleted: (id: string) => void;
+  onHouseholdUpdated?: (household: Household) => void;
   onOpenAddModal: () => void;
   onOpenImportModal?: () => void;
 }
@@ -24,11 +26,13 @@ interface HouseholdListProps {
 export const HouseholdList: React.FC<HouseholdListProps> = ({
   households,
   onHouseholdDeleted,
+  onHouseholdUpdated,
   onOpenAddModal,
   onOpenImportModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const filteredHouseholds = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -53,6 +57,32 @@ export const HouseholdList: React.FC<HouseholdListProps> = ({
     setTimeout(() => {
       setCopiedToken(null);
     }, 2000);
+  };
+
+  const handleRegenerateToken = async (household: Household) => {
+    const confirmed = window.confirm(
+      `Regenerate private RSVP link for "${household.name}"?\n\nThis will immediately invalidate and revoke the existing link. Any guest using the old link will get an Invitation Not Found error.`
+    );
+    if (!confirmed) return;
+
+    setRegeneratingId(household.id);
+    try {
+      const res = await regenerateTokenApi(household.id);
+      if (onHouseholdUpdated) {
+        onHouseholdUpdated({
+          ...household,
+          inviteToken: res.inviteToken,
+        });
+      }
+      const url = `${window.location.origin}/rsvp/${res.inviteToken}`;
+      await navigator.clipboard.writeText(url);
+      setCopiedToken(res.inviteToken);
+      setTimeout(() => setCopiedToken(null), 3000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to regenerate invite link');
+    } finally {
+      setRegeneratingId(null);
+    }
   };
 
   const handleDelete = async (household: Household) => {
@@ -187,27 +217,37 @@ export const HouseholdList: React.FC<HouseholdListProps> = ({
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <button
-                          onClick={() => handleCopyLink(household.inviteToken)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
-                            isCopied
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
-                          title="Copy unique RSVP link for this household"
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Copied Link!</span>
-                            </>
-                          ) : (
-                            <>
-                              <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Copy Link</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleCopyLink(household.inviteToken)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                              isCopied
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                            title="Copy unique RSVP link for this household"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Copied Link!</span>
+                              </>
+                            ) : (
+                              <>
+                                <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Copy Link</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleRegenerateToken(household)}
+                            disabled={regeneratingId === household.id}
+                            className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors border border-transparent hover:border-amber-200"
+                            title="Revoke and regenerate new private invite link"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${regeneratingId === household.id ? 'animate-spin text-amber-600' : ''}`} />
+                          </button>
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button

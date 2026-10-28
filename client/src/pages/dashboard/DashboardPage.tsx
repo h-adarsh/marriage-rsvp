@@ -149,6 +149,10 @@ export const DashboardPage: React.FC = () => {
     setHouseholds((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleHouseholdUpdated = (updatedHh: Household) => {
+    setHouseholds((prev) => prev.map((item) => (item.id === updatedHh.id ? updatedHh : item)));
+  };
+
   const formatEventDateTime = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', {
@@ -416,6 +420,7 @@ export const DashboardPage: React.FC = () => {
                   weddingId={activeWedding.id}
                   households={households}
                   onHouseholdDeleted={handleHouseholdDeleted}
+                  onHouseholdUpdated={handleHouseholdUpdated}
                   onOpenAddModal={() => setIsHouseholdModalOpen(true)}
                   onOpenImportModal={() => setIsImportModalOpen(true)}
                 />
