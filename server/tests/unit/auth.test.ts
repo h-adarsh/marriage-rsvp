@@ -3,6 +3,7 @@ import {
   hashPassword,
   verifyPassword,
   generateSessionId,
+  hashSessionId,
   generateInviteToken,
   getSessionCookieOptions,
   getClearCookieOptions,
@@ -57,5 +58,16 @@ describe('Authentication Utilities', () => {
     expect(clearOptions.httpOnly).toBe(true);
     expect(clearOptions.sameSite).toBe('strict');
     expect(clearOptions.path).toBe('/');
+  });
+
+  it('hashes session IDs deterministically using SHA-256 for at-rest storage', () => {
+    const rawId = 'abcd1234ef567890abcd1234ef567890abcd1234ef567890abcd1234ef567890';
+    const hash1 = hashSessionId(rawId);
+    const hash2 = hashSessionId(rawId);
+
+    expect(hash1).toHaveLength(64);
+    expect(hash1).toBe(hash2);
+    expect(hash1).not.toBe(rawId);
+    expect(hashSessionId('different_session')).not.toBe(hash1);
   });
 });

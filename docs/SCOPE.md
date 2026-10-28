@@ -138,10 +138,10 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 ### Milestone 2: Invitations per Function, Private Links & Mobile RSVP (Weeks 3–4)
 - **T2.1**: `household_functions` schema & backend assignment APIs (map households to functions, bulk assign/remove). *[2.0h]*
 - **T2.2**: Function invitation management frontend (Assign households to functions via checklists and bulk actions). *[2.0h]*
-- **T2.3**: Public invite token verification & scoping backend (Resolve household & invited functions by 128-bit unguessable token; token generated in T1.7). *[1.5h]*
+- **T2.3**: Public token lookup & verification service (Finds household by 128-bit token, applies probe rate-limiting, and returns uniform 404 for invalid, unknown, or expired tokens). *[1.5h]*
 - **T2.4**: WhatsApp share link generator (`wa.me/<phone>?text=...` with personalized invite message and link on household cards). *[1.5h]*
-- **T2.5**: Public RSVP backend API (`GET /api/rsvp/:token`, `POST /api/rsvp/:token` with unique `(function_id, household_id)` upsert and dietary validation). *[2.0h]*
-- **T2.6**: Rate limiting & security middleware for public RSVP routes and auth routes. *[1.5h]*
+- **T2.5**: Public RSVP read & write API (`GET /api/rsvp/:token` returning invited functions & existing RSVPs, `POST /api/rsvp/:token` with unique `(function_id, household_id)` upsert and server-side `veg + nonveg = party_size` validation built on T2.3). *[2.0h]*
+- **T2.6**: Rate limiting, brute-force defense & token scoping tests (Verify 429 rate limit, uniform token errors, and isolation test that Household A token cannot read or modify Household B). *[1.5h]*
 - **T2.7**: Mobile-first Guest RSVP UI (Clean mobile layout, function list cards, Yes/No/Maybe selectors, veg/non-veg inputs). *[2.0h]*
 - **T2.8**: Guest RSVP submission flow (Client-side validation, submit handling, confirmation view, return-to-edit capability). *[2.0h]*
 - **T2.9**: Audit log recording for RSVP updates (tracking timestamp, changes, source). *[1.5h]*

@@ -2,6 +2,7 @@
   "name": "wedding-rsvp-headcount",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "workspaces": [
     "server",
     "client"
@@ -14,10 +15,15 @@
     "test": "npm run test --workspace=server && npm run test --workspace=client",
     "test:unit": "npm run test:unit --workspace=server",
     "test:api": "npm run test:api --workspace=server",
-    "lint": "tsc --noEmit --project server && tsc --noEmit --project client",
+    "typecheck": "tsc --noEmit --project server && tsc --noEmit --project client",
+    "lint": "eslint server/src client/src",
     "db:migrate": "npm run db:migrate --workspace=server"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
+    "concurrently": "^9.1.2",
+    "eslint": "^10.13.0",
+    "eslint-plugin-security": "^4.2.0"
   }
 }

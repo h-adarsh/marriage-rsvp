@@ -9,7 +9,7 @@ import { getOwnedWedding } from '../middleware/tenant';
 import { householdSchema } from './households';
 import { generateInviteToken } from '../utils/auth';
 import multer from 'multer';
-import { processHouseholdCsv, checkDuplicates } from '../services/csv';
+import { processHouseholdCsv, checkDuplicates, normalizePhone } from '../services/csv';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -286,7 +286,7 @@ weddingsRouter.post('/:id/households', async (req: Request, res: Response): Prom
       weddingId,
       name: name.trim(),
       primaryContactName: primaryContactName.trim(),
-      phone: phone.trim(),
+      phone: normalizePhone(phone),
       expectedPartySize,
       inviteToken,
       notes: notes ? notes.trim() : null,
@@ -334,6 +334,7 @@ weddingsRouter.post(
         .select({
           id: households.id,
           name: households.name,
+          primaryContactName: households.primaryContactName,
           phone: households.phone,
         })
         .from(households)

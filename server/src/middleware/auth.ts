@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { eq, and, gt } from 'drizzle-orm';
 import { db } from '../db';
 import { sessions, planners } from '../db/schema';
-import { COOKIE_NAME } from '../utils/auth';
+import { COOKIE_NAME, hashSessionId } from '../utils/auth';
 
 /**
  * Authentication middleware that verifies session cookie against database sessions
@@ -16,6 +16,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
+    const sessionHash = hashSessionId(sessionId);
+
     const records = await db
       .select({
         sessionId: sessions.id,
@@ -27,7 +29,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       .innerJoin(planners, eq(sessions.plannerId, planners.id))
       .where(
         and(
-          eq(sessions.id, sessionId),
+          eq(sessions.id, sessionHash),
           gt(sessions.expiresAt, new Date())
         )
       )

@@ -19,6 +19,7 @@ export interface DuplicateReport {
 export interface ExistingHouseholdSummary {
   id: string;
   name: string;
+  primaryContactName?: string;
   phone: string;
 }
 
@@ -160,6 +161,12 @@ export function processHouseholdCsv(csvContent: string): {
 /**
  * Detect duplicates between incoming rows and existing database records,
  * as well as intra-batch duplicates inside the CSV itself.
+ *
+ * Rules:
+ * 1. Phone match is a hard duplicate (phone is unique household identifier).
+ * 2. Same household name AND primary contact is a duplicate.
+ * 3. Same household name with DIFFERENT phone and DIFFERENT contact is PERMITTED
+ *    (many distinct families share surnames like "Sharma Family").
  */
 export function checkDuplicates(
   incomingRows: ParsedHouseholdRow[],
@@ -171,23 +178,32 @@ export function checkDuplicates(
   const duplicates: DuplicateReport[] = [];
   const uniqueRows: ParsedHouseholdRow[] = [];
 
-  // Existing database lookup sets
+  // Existing database lookup maps
   const existingPhones = new Map<string, string>();
-  const existingNames = new Map<string, string>();
+  const existingNameAndContacts = new Map<string, string>();
 
   for (const h of existingHouseholds) {
-    existingPhones.set(normalizePhone(h.phone), h.name);
-    existingNames.set(normalizeName(h.name), h.name);
+    if (h.phone) {
+      existingPhones.set(normalizePhone(h.phone), h.name);
+    }
+    const normName = normalizeName(h.name);
+    const normContact = h.primaryContactName ? normalizeName(h.primaryContactName) : '';
+    if (normName && normContact) {
+      existingNameAndContacts.set(`${normName}::${normContact}`, h.name);
+    }
   }
 
   // Intra-batch tracker sets
   const seenPhones = new Set<string>();
-  const seenNames = new Set<string>();
+  const seenNameAndContacts = new Set<string>();
 
   for (const row of incomingRows) {
     const normPhone = normalizePhone(row.phone);
     const normName = normalizeName(row.name);
+    const normContact = normalizeName(row.primaryContactName);
+    const nameContactKey = normName && normContact ? `${normName}::${normContact}` : '';
 
+    // 1. Check phone duplicate against existing DB
     if (normPhone && existingPhones.has(normPhone)) {
       duplicates.push({
         rowNumber: row.rowNumber,
@@ -198,16 +214,18 @@ export function checkDuplicates(
       continue;
     }
 
-    if (normName && existingNames.has(normName)) {
+    // 2. Check exact name AND primary contact duplicate against existing DB
+    if (nameContactKey && existingNameAndContacts.has(nameContactKey)) {
       duplicates.push({
         rowNumber: row.rowNumber,
         name: row.name,
         phone: row.phone,
-        reason: `Name matches existing household "${existingNames.get(normName)}"`,
+        reason: `Both household name and contact match existing household "${existingNameAndContacts.get(nameContactKey)}"`,
       });
       continue;
     }
 
+    // 3. Check intra-batch phone duplicate
     if (normPhone && seenPhones.has(normPhone)) {
       duplicates.push({
         rowNumber: row.rowNumber,
@@ -218,18 +236,19 @@ export function checkDuplicates(
       continue;
     }
 
-    if (normName && seenNames.has(normName)) {
+    // 4. Check intra-batch name AND contact duplicate
+    if (nameContactKey && seenNameAndContacts.has(nameContactKey)) {
       duplicates.push({
         rowNumber: row.rowNumber,
         name: row.name,
         phone: row.phone,
-        reason: 'Duplicate household name within the uploaded file',
+        reason: 'Duplicate household name and contact within the uploaded file',
       });
       continue;
     }
 
     if (normPhone) seenPhones.add(normPhone);
-    if (normName) seenNames.add(normName);
+    if (nameContactKey) seenNameAndContacts.add(nameContactKey);
     uniqueRows.push(row);
   }
 

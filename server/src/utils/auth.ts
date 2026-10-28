@@ -35,6 +35,14 @@ export function generateSessionId(): string {
 }
 
 /**
+ * Hash a session token using SHA-256 for secure storage at rest.
+ * Prevents account takeover in the event of a database compromise.
+ */
+export function hashSessionId(sessionId: string): string {
+  return crypto.createHash('sha256').update(sessionId).digest('hex');
+}
+
+/**
  * Generate a cryptographically secure 128-bit (32-character) unguessable invite token
  */
 export function generateInviteToken(): string {

@@ -5,6 +5,7 @@ import { db } from '../db';
 import { households } from '../db/schema';
 import { requireAuth } from '../middleware/auth';
 import { getOwnedHousehold } from '../middleware/tenant';
+import { normalizePhone } from '../services/csv';
 
 export const householdsRouter = Router();
 
@@ -45,7 +46,7 @@ householdsRouter.put('/:id', async (req: Request, res: Response): Promise<void> 
       .set({
         name: name.trim(),
         primaryContactName: primaryContactName.trim(),
-        phone: phone.trim(),
+        phone: normalizePhone(phone),
         expectedPartySize,
         notes: notes ? notes.trim() : null,
       })

@@ -8,6 +8,7 @@ import {
   hashPassword,
   verifyPassword,
   generateSessionId,
+  hashSessionId,
   getSessionCookieOptions,
   getClearCookieOptions,
   COOKIE_NAME,
@@ -59,6 +60,7 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response): P
     const passwordHash = await hashPassword(password);
     const plannerId = crypto.randomUUID();
     const sessionId = generateSessionId();
+    const sessionHash = hashSessionId(sessionId);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     // Insert planner
@@ -69,9 +71,9 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response): P
       name: name.trim(),
     });
 
-    // Create active session
+    // Create active session (hashed at rest)
     await db.insert(sessions).values({
-      id: sessionId,
+      id: sessionHash,
       plannerId,
       expiresAt,
     });
@@ -129,10 +131,12 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response): Prom
     }
 
     const sessionId = generateSessionId();
+    const sessionHash = hashSessionId(sessionId);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
+    // Create active session (hashed at rest)
     await db.insert(sessions).values({
-      id: sessionId,
+      id: sessionHash,
       plannerId: planner.id,
       expiresAt,
     });
@@ -157,7 +161,8 @@ authRouter.post('/logout', async (req: Request, res: Response): Promise<void> =>
 
   if (sessionId && typeof sessionId === 'string') {
     try {
-      await db.delete(sessions).where(eq(sessions.id, sessionId));
+      const sessionHash = hashSessionId(sessionId);
+      await db.delete(sessions).where(eq(sessions.id, sessionHash));
     } catch (error) {
       console.error('[auth] Logout session cleanup error:', error);
     }

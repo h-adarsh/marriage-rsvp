@@ -49,50 +49,78 @@ Verma Family,Sunita Verma,+919876543212,0,Valid with fallback`;
     expect(invalidRows[1].validationError).toMatch(/invalid phone/i);
   });
 
-  it('detects existing phone duplicates and existing name duplicates', () => {
+  it('allows two different families sharing the same surname/name with different phones', () => {
     const incoming = [
       {
         rowNumber: 2,
         name: 'Sharma Family',
         primaryContactName: 'Rajesh Sharma',
         phone: '+919876543210',
-        expectedPartySize: 3,
+        expectedPartySize: 4,
         isValid: true,
       },
       {
         rowNumber: 3,
-        name: 'Kapoor Household',
-        primaryContactName: 'Anil Kapoor',
-        phone: '+919999999999',
+        name: 'Sharma Family',
+        primaryContactName: 'Amit Sharma', // Different contact & different phone
+        phone: '+919876543299',
         expectedPartySize: 2,
         isValid: true,
       },
+    ];
+
+    const { duplicates, uniqueRows } = checkDuplicates(incoming, []);
+
+    expect(duplicates).toHaveLength(0);
+    expect(uniqueRows).toHaveLength(2);
+    expect(uniqueRows[0].primaryContactName).toBe('Rajesh Sharma');
+    expect(uniqueRows[1].primaryContactName).toBe('Amit Sharma');
+  });
+
+  it('detects duplicate phone even with different household spelling or name', () => {
+    const incoming = [
       {
-        rowNumber: 4,
-        name: 'Gupta Family',
-        primaryContactName: 'Vikas Gupta',
-        phone: '+918888888888',
-        expectedPartySize: 4,
+        rowNumber: 2,
+        name: 'Sharma Residence',
+        primaryContactName: 'R. Sharma',
+        phone: '9876543210', // 10-digit version
+        expectedPartySize: 3,
         isValid: true,
       },
     ];
 
     const existing = [
-      { id: '1', name: 'Existing Sharma', phone: '+91 98765 43210' }, // Matches phone of row 2
-      { id: '2', name: 'Kapoor Household', phone: '+91 11111 22222' }, // Matches name of row 3
+      { id: '1', name: 'The Sharma Family', primaryContactName: 'Rajesh Sharma', phone: '+91 98765-43210' },
     ];
 
     const { duplicates, uniqueRows } = checkDuplicates(incoming, existing);
 
-    expect(duplicates).toHaveLength(2);
-    expect(duplicates[0].rowNumber).toBe(2);
-    expect(duplicates[0].reason).toMatch(/matches existing household/i);
+    expect(duplicates).toHaveLength(1);
+    expect(duplicates[0].reason).toMatch(/phone matches existing household/i);
+    expect(uniqueRows).toHaveLength(0);
+  });
 
-    expect(duplicates[1].rowNumber).toBe(3);
-    expect(duplicates[1].reason).toMatch(/matches existing household/i);
+  it('detects duplicate when both household name and primary contact match an existing record', () => {
+    const incoming = [
+      {
+        rowNumber: 2,
+        name: 'Kapoor Household',
+        primaryContactName: 'Anil Kapoor',
+        phone: '+919111122222',
+        expectedPartySize: 2,
+        isValid: true,
+      },
+    ];
 
-    expect(uniqueRows).toHaveLength(1);
-    expect(uniqueRows[0].name).toBe('Gupta Family');
+    const existing = [
+      { id: '1', name: 'Kapoor Household', primaryContactName: 'Anil Kapoor', phone: '+919999988888' },
+    ];
+
+    const { duplicates, uniqueRows } = checkDuplicates(incoming, existing);
+
+    expect(duplicates).toHaveLength(1);
+    expect(duplicates[0].reason).toMatch(/both household name and contact match/i);
+    expect(uniqueRows).toHaveLength(0);
   });
 
   it('detects intra-batch duplicates inside the same uploaded CSV file', () => {
