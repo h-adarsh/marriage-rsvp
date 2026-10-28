@@ -170,7 +170,69 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
       .send({ householdIds: [householdA2Id] });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/Cannot unassign household.*already submitted an RSVP/i);
+    expect(res.body.error).toMatch(/Cannot unassign household that has already submitted an RSVP/i);
+  });
+
+  it('supports delta add and remove operations to prevent stale browser tab overwrites', async () => {
+    // 1. Add householdA2Id via delta add
+    const addRes = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [householdA2Id] });
+
+    expect(addRes.status).toBe(200);
+    expect(addRes.body.addedCount).toBe(1);
+
+    // Verify both A1 and A2 are now invited
+    const listRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a1 = listRes.body.find((h: any) => h.id === householdA1Id);
+    const a2 = listRes.body.find((h: any) => h.id === householdA2Id);
+    expect(a1?.invited).toBe(true);
+    expect(a2?.invited).toBe(true);
+
+    // 2. Remove householdA2Id via delta remove without affecting A1
+    const removeRes = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [householdA2Id] });
+
+    expect(removeRes.status).toBe(200);
+    expect(removeRes.body.removedCount).toBe(1);
+
+    // Verify A2 is uninvited while A1 remains invited
+    const listResAfter = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a1After = listResAfter.body.find((h: any) => h.id === householdA1Id);
+    const a2After = listResAfter.body.find((h: any) => h.id === householdA2Id);
+    expect(a1After?.invited).toBe(true);
+    expect(a2After?.invited).toBe(false);
+  });
+
+  it('successfully unassigns a household that has NOT replied (no RSVP submitted)', async () => {
+    // 1. Assign householdA2Id (which has no RSVP in rsvps table)
+    await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [householdA2Id] });
+
+    // 2. Unassign householdA2Id - should succeed without error because no RSVP was submitted
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [householdA2Id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.removedCount).toBe(1);
+
+    const listRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a2 = listRes.body.find((h: any) => h.id === householdA2Id);
+    expect(a2?.invited).toBe(false);
   });
 });
+
 

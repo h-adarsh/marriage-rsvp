@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { eq, and, inArray, asc } from 'drizzle-orm';
+import { eq, and, inArray, asc, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { functions, households, householdFunctions, rsvps } from '../db/schema';
 import { requireAuth } from '../middleware/auth';
@@ -80,8 +80,15 @@ functionsRouter.delete('/:id', async (req: Request, res: Response): Promise<void
 });
 
 const invitationAssignmentSchema = z.object({
-  householdIds: z.array(z.string()).max(500, 'Household list cannot exceed 500 households'),
-});
+  // Delta interface: preferred to prevent stale browser tab overwrites
+  add: z.array(z.string()).max(500, 'Add list cannot exceed 500 households').optional(),
+  remove: z.array(z.string()).max(500, 'Remove list cannot exceed 500 households').optional(),
+  // Full-list replacement interface: supported for backwards compatibility
+  householdIds: z.array(z.string()).max(500, 'Household list cannot exceed 500 households').optional(),
+}).refine(
+  (data) => data.add !== undefined || data.remove !== undefined || data.householdIds !== undefined,
+  { message: 'Must provide either "add"/"remove" lists or "householdIds"' }
+);
 
 /**
  * GET /api/functions/:id/invitations - List all households in wedding with invited status
@@ -134,11 +141,13 @@ functionsRouter.get('/:id/invitations', async (req: Request, res: Response): Pro
 /**
  * POST /api/functions/:id/invitations - Bulk assign/unassign households to a function
  *
- * Invariants:
- * 1. Bulk-endpoint IDOR: Every household ID must belong to the function's wedding.
- * 2. Capped at 500 households per batch.
- * 3. Duplicate IDs in the input array are handled idempotently.
- * 4. RSVP Protection: Cannot unassign a household that has already submitted an RSVP.
+ * Invariants & Protections:
+ * 1. Bulk-endpoint IDOR: Every household ID in add/remove/householdIds must belong to the function's wedding.
+ * 2. Capped at 500 households per batch operation.
+ * 3. Atomic Database Transaction: Wrapped in db.transaction to prevent partial failures.
+ * 4. Duplicate IDs in the input arrays are deduplicated and handled idempotently.
+ * 5. RSVP Protection: Cannot unassign a household that has already submitted an RSVP ('yes', 'no', or 'maybe').
+ *    Unassigning a household with no response/reply succeeds cleanly.
  */
 functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Promise<void> => {
   const functionId = req.params.id;
@@ -156,78 +165,118 @@ functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Pr
       return;
     }
 
-    // Deduplicate input household IDs
-    const targetIds = Array.from(new Set(parseResult.data.householdIds));
+    const { add, remove, householdIds } = parseResult.data;
 
-    // Bulk-endpoint IDOR defense:
-    // Verify that all requested households belong to the function's parent wedding
-    if (targetIds.length > 0) {
-      const matchingHouseholds = await db
-        .select({ id: households.id })
-        .from(households)
-        .where(and(eq(households.weddingId, owned.wedding.id), inArray(households.id, targetIds)));
-
-      if (matchingHouseholds.length !== targetIds.length) {
-        res.status(400).json({ error: 'One or more households do not belong to this wedding' });
-        return;
-      }
-    }
-
-    // Query current assignments
+    // Fetch existing assignments
     const currentAssigned = await db
       .select({ householdId: householdFunctions.householdId })
       .from(householdFunctions)
       .where(eq(householdFunctions.functionId, functionId));
 
     const currentSet = new Set(currentAssigned.map((r) => r.householdId));
-    const targetSet = new Set(targetIds);
 
-    // Identify households to be unassigned
-    const toUnassign = currentAssigned
-      .filter((r) => !targetSet.has(r.householdId))
-      .map((r) => r.householdId);
+    let toAssign: string[] = [];
+    let toUnassign: string[] = [];
+    let allReferencedIds: string[] = [];
+
+    if (add !== undefined || remove !== undefined) {
+      // Delta mode: add / remove
+      const rawAdd = add || [];
+      const rawRemove = remove || [];
+      const uniqueAdd = Array.from(new Set(rawAdd));
+      const uniqueRemove = Array.from(new Set(rawRemove));
+
+      toAssign = uniqueAdd.filter((id) => !currentSet.has(id));
+      toUnassign = uniqueRemove.filter((id) => currentSet.has(id));
+      allReferencedIds = Array.from(new Set([...uniqueAdd, ...uniqueRemove]));
+    } else if (householdIds !== undefined) {
+      // Full replacement mode
+      const targetIds = Array.from(new Set(householdIds));
+      const targetSet = new Set(targetIds);
+
+      toAssign = targetIds.filter((id) => !currentSet.has(id));
+      toUnassign = currentAssigned
+        .filter((r) => !targetSet.has(r.householdId))
+        .map((r) => r.householdId);
+      allReferencedIds = targetIds;
+    }
+
+    // Bulk-endpoint IDOR defense:
+    // Verify that every single referenced household belongs to this wedding
+    if (allReferencedIds.length > 0) {
+      const matchingHouseholds = await db
+        .select({ id: households.id })
+        .from(households)
+        .where(and(eq(households.weddingId, owned.wedding.id), inArray(households.id, allReferencedIds)));
+
+      if (matchingHouseholds.length !== allReferencedIds.length) {
+        res.status(400).json({ error: 'One or more households do not belong to this wedding' });
+        return;
+      }
+    }
 
     // RSVP Protection Rule:
-    // Block unassigning any household that has already submitted an RSVP for this function
+    // Block unassigning any household that has already submitted an RSVP ('yes', 'no', or 'maybe')
     if (toUnassign.length > 0) {
-      const activeRsvps = await db
-        .select({ householdId: rsvps.householdId })
+      const repliedRsvps = await db
+        .select({ householdId: rsvps.householdId, status: rsvps.status })
         .from(rsvps)
-        .where(and(eq(rsvps.functionId, functionId), inArray(rsvps.householdId, toUnassign)));
+        .where(
+          and(
+            eq(rsvps.functionId, functionId),
+            inArray(rsvps.householdId, toUnassign),
+            inArray(rsvps.status, ['yes', 'no', 'maybe'])
+          )
+        );
 
-      if (activeRsvps.length > 0) {
+      if (repliedRsvps.length > 0) {
         res.status(400).json({
-          error: 'Cannot unassign household that has already submitted an RSVP. Delete or clear the RSVP first.',
+          error: "Cannot unassign household that has already submitted an RSVP ('yes', 'no', or 'maybe').",
         });
         return;
       }
-
-      // Remove unassigned households
-      await db
-        .delete(householdFunctions)
-        .where(
-          and(
-            eq(householdFunctions.functionId, functionId),
-            inArray(householdFunctions.householdId, toUnassign)
-          )
-        );
     }
 
-    // Identify households to be newly assigned
-    const toAssign = targetIds.filter((id) => !currentSet.has(id));
-    if (toAssign.length > 0) {
-      const newRows = toAssign.map((householdId) => ({
-        id: crypto.randomUUID(),
-        householdId,
-        functionId,
-      }));
-      await db.insert(householdFunctions).values(newRows);
-    }
+    // Atomic Database Transaction: all-or-nothing
+    await db.transaction(async (tx) => {
+      if (toUnassign.length > 0) {
+        await tx
+          .delete(householdFunctions)
+          .where(
+            and(
+              eq(householdFunctions.functionId, functionId),
+              inArray(householdFunctions.householdId, toUnassign)
+            )
+          );
+      }
 
-    res.json({ success: true, invitedCount: targetIds.length });
+      if (toAssign.length > 0) {
+        const newRows = toAssign.map((householdId) => ({
+          id: crypto.randomUUID(),
+          householdId,
+          functionId,
+        }));
+        await tx.insert(householdFunctions).values(newRows);
+      }
+    });
+
+    // Query accurate total invited count
+    const totalInvited = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(householdFunctions)
+      .where(eq(householdFunctions.functionId, functionId));
+    const invitedCount = Number(totalInvited[0]?.count || 0);
+
+    res.json({
+      success: true,
+      addedCount: toAssign.length,
+      removedCount: toUnassign.length,
+      invitedCount,
+    });
   } catch (error) {
     console.error('[functions] Update invitations error:', error);
     res.status(500).json({ error: 'Failed to update function invitations' });
   }
 });
+
 
