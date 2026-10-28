@@ -7,11 +7,15 @@ import { weddingsRouter } from './routes/weddings';
 import { functionsRouter } from './routes/functions';
 import { householdsRouter } from './routes/households';
 import { csrfProtection, getAllowedOrigins } from './middleware/csrf';
+import { parseTrustProxy } from './utils/proxy';
 
 dotenv.config({ path: '../.env' });
 dotenv.config();
 
 export const app = express();
+
+// Configure trust proxy setting dynamically from environment
+app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 
 app.use(cors({
   origin: (origin, callback) => {
