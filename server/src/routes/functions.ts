@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import crypto from 'crypto';
+import { eq, and, inArray, asc } from 'drizzle-orm';
 import { db } from '../db';
-import { functions } from '../db/schema';
+import { functions, households, householdFunctions, rsvps } from '../db/schema';
 import { requireAuth } from '../middleware/auth';
 import { getOwnedFunction } from '../middleware/tenant';
 
@@ -77,3 +78,156 @@ functionsRouter.delete('/:id', async (req: Request, res: Response): Promise<void
     res.status(500).json({ error: 'Failed to delete function' });
   }
 });
+
+const invitationAssignmentSchema = z.object({
+  householdIds: z.array(z.string()).max(500, 'Household list cannot exceed 500 households'),
+});
+
+/**
+ * GET /api/functions/:id/invitations - List all households in wedding with invited status
+ */
+functionsRouter.get('/:id/invitations', async (req: Request, res: Response): Promise<void> => {
+  const functionId = req.params.id;
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    // 1. Get all households belonging to the function's wedding
+    const allHouseholds = await db
+      .select({
+        id: households.id,
+        name: households.name,
+        primaryContactName: households.primaryContactName,
+        phone: households.phone,
+        expectedPartySize: households.expectedPartySize,
+        notes: households.notes,
+      })
+      .from(households)
+      .where(eq(households.weddingId, owned.wedding.id))
+      .orderBy(asc(households.name));
+
+    // 2. Get assigned household IDs for this function
+    const assignedRows = await db
+      .select({ householdId: householdFunctions.householdId })
+      .from(householdFunctions)
+      .where(eq(householdFunctions.functionId, functionId));
+
+    const assignedSet = new Set(assignedRows.map((r) => r.householdId));
+
+    // 3. Map to result array with invited flag
+    const result = allHouseholds.map((h) => ({
+      ...h,
+      invited: assignedSet.has(h.id),
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('[functions] Get invitations error:', error);
+    res.status(500).json({ error: 'Failed to retrieve function invitations' });
+  }
+});
+
+/**
+ * POST /api/functions/:id/invitations - Bulk assign/unassign households to a function
+ *
+ * Invariants:
+ * 1. Bulk-endpoint IDOR: Every household ID must belong to the function's wedding.
+ * 2. Capped at 500 households per batch.
+ * 3. Duplicate IDs in the input array are handled idempotently.
+ * 4. RSVP Protection: Cannot unassign a household that has already submitted an RSVP.
+ */
+functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Promise<void> => {
+  const functionId = req.params.id;
+
+  const parseResult = invitationAssignmentSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ error: parseResult.error.errors[0]?.message || 'Invalid assignment input' });
+    return;
+  }
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    // Deduplicate input household IDs
+    const targetIds = Array.from(new Set(parseResult.data.householdIds));
+
+    // Bulk-endpoint IDOR defense:
+    // Verify that all requested households belong to the function's parent wedding
+    if (targetIds.length > 0) {
+      const matchingHouseholds = await db
+        .select({ id: households.id })
+        .from(households)
+        .where(and(eq(households.weddingId, owned.wedding.id), inArray(households.id, targetIds)));
+
+      if (matchingHouseholds.length !== targetIds.length) {
+        res.status(400).json({ error: 'One or more households do not belong to this wedding' });
+        return;
+      }
+    }
+
+    // Query current assignments
+    const currentAssigned = await db
+      .select({ householdId: householdFunctions.householdId })
+      .from(householdFunctions)
+      .where(eq(householdFunctions.functionId, functionId));
+
+    const currentSet = new Set(currentAssigned.map((r) => r.householdId));
+    const targetSet = new Set(targetIds);
+
+    // Identify households to be unassigned
+    const toUnassign = currentAssigned
+      .filter((r) => !targetSet.has(r.householdId))
+      .map((r) => r.householdId);
+
+    // RSVP Protection Rule:
+    // Block unassigning any household that has already submitted an RSVP for this function
+    if (toUnassign.length > 0) {
+      const activeRsvps = await db
+        .select({ householdId: rsvps.householdId })
+        .from(rsvps)
+        .where(and(eq(rsvps.functionId, functionId), inArray(rsvps.householdId, toUnassign)));
+
+      if (activeRsvps.length > 0) {
+        res.status(400).json({
+          error: 'Cannot unassign household that has already submitted an RSVP. Delete or clear the RSVP first.',
+        });
+        return;
+      }
+
+      // Remove unassigned households
+      await db
+        .delete(householdFunctions)
+        .where(
+          and(
+            eq(householdFunctions.functionId, functionId),
+            inArray(householdFunctions.householdId, toUnassign)
+          )
+        );
+    }
+
+    // Identify households to be newly assigned
+    const toAssign = targetIds.filter((id) => !currentSet.has(id));
+    if (toAssign.length > 0) {
+      const newRows = toAssign.map((householdId) => ({
+        id: crypto.randomUUID(),
+        householdId,
+        functionId,
+      }));
+      await db.insert(householdFunctions).values(newRows);
+    }
+
+    res.json({ success: true, invitedCount: targetIds.length });
+  } catch (error) {
+    console.error('[functions] Update invitations error:', error);
+    res.status(500).json({ error: 'Failed to update function invitations' });
+  }
+});
+
