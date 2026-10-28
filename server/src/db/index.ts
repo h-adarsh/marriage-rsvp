@@ -5,14 +5,18 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: '../.env' });
 dotenv.config();
-const isTest = process.env.NODE_ENV === 'test';
-const defaultUri = isTest
+const isTestEnv = Boolean(process.env.VITEST || process.env.NODE_ENV === 'test');
+const connectionUri = isTestEnv
   ? (process.env.DATABASE_TEST_URL || 'mysql://root:password@localhost:3306/wedding_rsvp_test')
   : (process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/wedding_rsvp');
 
-const connectionUri = isTest && process.env.DATABASE_TEST_URL
-  ? process.env.DATABASE_TEST_URL
-  : defaultUri;
+// Safety guard: prevent tests from ever running against development or production databases
+if (isTestEnv && !connectionUri.match(/\/([^/?]+_test)(\?.*)?$/)) {
+  throw new Error(
+    `Test safety violation: Test suite refuses to run against non-test database: "${connectionUri}". Database name must end in '_test'.`
+  );
+}
+
 
 // Create a connection pool for efficient query execution
 export const pool = mysql.createPool(connectionUri);
