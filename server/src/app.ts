@@ -6,19 +6,17 @@ import { authRouter } from './routes/auth';
 import { weddingsRouter } from './routes/weddings';
 import { functionsRouter } from './routes/functions';
 import { householdsRouter } from './routes/households';
-import { csrfProtection } from './middleware/csrf';
+import { csrfProtection, getAllowedOrigins } from './middleware/csrf';
 
 dotenv.config({ path: '../.env' });
 dotenv.config();
 
 export const app = express();
 
-const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-const allowedOrigins = [clientUrl, 'http://localhost:5173', 'http://localhost:5174'];
-
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    const allowed = getAllowedOrigins();
+    if (!origin || allowed.has(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -26,6 +24,7 @@ app.use(cors({
   },
   credentials: true,
 }));
+
 
 app.use(cookieParser());
 app.use(express.json({ limit: '100kb' }));
