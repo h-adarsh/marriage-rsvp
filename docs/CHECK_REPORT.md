@@ -181,4 +181,51 @@ All 6 bugs (B1 through B6) were fixed, tested, and verified. 80 server tests pas
 **READY TO PROCEED TO T2.3.**  
 All review criteria for T2.1 and T2.2 are resolved, verified by automated tests (101 passing), and committed with atomic commits.
 
+---
+
+# Milestone 2 Check Report (Tasks T2.3 & T2.4b)
+
+**Date:** 2026-10-28  
+**Scope Checked:**
+- **Proxy Type Safety**: `parseTrustProxy` parser handles undefined, boolean "false"/"true", numeric hops ("1" -> 1), and CIDR/subnets ("loopback"), wired into `app.set('trust proxy', ...)`.
+- **Atomic Audit Logging on Reset**: RSVP reset audit log write and database deletion wrapped in single `db.transaction`.
+- **True Route Rollback Proof**: Spied on `db.transaction` in invitations route midway during insert to prove deletions are rolled back on write error.
+- **Wedding Cascade Audit Deletion**: Integration test proving wedding deletion cascades to remove associated audit log entries.
+- **Least-Privilege Database User**: Created dedicated MySQL user `wedding_user` with permissions granted solely to `wedding_rsvp` and `wedding_rsvp_test`.
+- **T2.3 Public Token Lookup & Verification Service**: `GET /api/rsvp/:token` with zero PII, scoped invited functions only, uniform 404 for invalid/malformed/unknown tokens, anti-leak headers (`Referrer-Policy: no-referrer`, `Cache-Control: no-store, no-cache, must-revalidate`, `X-Robots-Tag: noindex, nofollow`), and dual-key rate limiting (`rsvpGeneralLimiter` + `rsvpInvalidTokenLimiter`).
+- **T2.4b Invite Link Revocation & Token Regeneration**: `POST /api/households/:id/regenerate-token` invalidating old tokens, issuing new unguessable 128-bit hex tokens, recording audit trail, and providing UI action in `HouseholdList`.
+
+---
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run typecheck` | **PASS** | 0 errors across server and client workspaces. |
+| `npm run lint` | **PASS** | 0 errors, 0 warnings across `server/src` and `client/src`. |
+| `npm test --workspace=server` | **PASS** | **17 test files, 116 passing tests** (101 → 107 → 116 tests). |
+| Docker least-privilege verification | **PASS** | `wedding_user` confirmed to see only `wedding_rsvp` and `wedding_rsvp_test`. |
+
+---
+
+## 2. Review Findings & Fixes Matrix
+
+| Feedback Item | Issue / Gap | Fix Implemented | Verification Evidence |
+| :--- | :--- | :--- | :--- |
+| **`TRUST_PROXY` Type Safety** | String `"false"` or `"1"` in env variables causes Express to parse as IP string or crash | Implemented `parseTrustProxy` in `server/src/utils/proxy.ts` converting `"false"` to `false`, `"true"` to `true`, numeric strings to integers, and preserving CIDRs. | 5 unit tests in `proxy.test.ts` passing; wired into `app.ts`. |
+| **Reset RSVP Audit Atomicity** | Audit log write was outside the RSVP delete transaction | Wrapped audit log insert and RSVP deletion inside a single `db.transaction(async (tx) => { ... })`. | Verified in `functions.ts` lines 394-416. |
+| **Real Route Rollback Proof** | Previous test only simulated standalone transaction rollback | Added route-level rollback test spying on `db.transaction` where `tx.insert` throws midway after `tx.delete`, asserting HTTP 500 and database state untouched. | `proves the invitations route transaction rolls back deletions if subsequent insert fails midway` passes. |
+| **Cascade Deletion of Audit Log** | Audit entries needed proof of cascade deletion upon wedding purge | Added integration test creating disposable wedding with audit log entries and deleting wedding. | `cascades deletion of wedding to automatically remove all associated audit_log entries` passes. |
+| **Least-Privilege DB User** | App was connecting as root user | Created `wedding_user` in MySQL Docker container with access strictly restricted to `wedding_rsvp` and `wedding_rsvp_test`. | Verified via `SHOW DATABASES` inside Docker; updated `.env` and `.env.example`. |
+| **T2.3 Public Token Lookup** | Need public token lookup with zero PII, function scoping, and anti-leak headers | Implemented `GET /api/rsvp/:token` returning only household name/expectedPartySize, wedding couple names, and functions invited via `household_functions`. | 7 integration tests in `rsvp_lookup.test.ts` passing. |
+| **T2.3 Dual-Key Rate Limiting** | Need strict invalid token rate limit and generous valid lookup limit | Implemented `rsvpGeneralLimiter` (100 req/15min) and `rsvpInvalidTokenLimiter` (10 failed attempts/15min with `skipSuccessfulRequests: true`). | Rate limit tests verify 10 failures trigger HTTP 429 while successes do not count toward failure budget. |
+| **T2.4b Token Revocation** | Need token regeneration endpoint to revoke compromised links | Implemented `POST /api/households/:id/regenerate-token` with audit logging, and added UI button in `HouseholdList`. | `token_revocation.test.ts` proves old token returns 404 immediately and new token works. |
+
+---
+
+## 3. Verdict
+**T2.3 and T2.4b COMPLETE & ACCEPTED.**  
+Next task: **T2.5 (Public RSVP submission API with `SELECT ... FOR UPDATE` row lock and concurrency test)**.
+
+
 
