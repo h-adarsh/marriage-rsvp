@@ -340,7 +340,8 @@ weddingsRouter.post(
         .from(households)
         .where(eq(households.weddingId, weddingId));
 
-      const { duplicates, uniqueRows } = checkDuplicates(validRows, existingHouseholds);
+      const allowSharedPhone = req.query.allowSharedPhone === 'true';
+      const { duplicates, uniqueRows } = checkDuplicates(validRows, existingHouseholds, { allowSharedPhone });
 
       // Dry run / preview mode
       const isDryRun = req.query.dryRun === 'true';

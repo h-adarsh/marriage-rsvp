@@ -14,11 +14,17 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
 
   const origin = req.headers.origin;
   const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const extraOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   const allowedOrigins = new Set([
     clientUrl,
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5001',
+    ...extraOrigins,
   ]);
 
   // Reject untrusted cross-origin mutating requests

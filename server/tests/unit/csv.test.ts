@@ -208,4 +208,82 @@ Verma Family,Sunita Verma,+919876543212,0,Valid with fallback`;
     expect(duplicates[0].reason).toMatch(/matches existing household/i);
     expect(uniqueRows).toHaveLength(0);
   });
+
+  it('normalizes Devanagari Unicode NFC so composed and decomposed code points match', () => {
+    // Precomposed: \u095C (ड़) vs Decomposed: \u0921\u093C (ड + ़)
+    const nameComposed = 'बड़ा परिवार';
+    const nameDecomposed = 'ब\u0921\u093Cा परिवार';
+
+    expect(normalizeName(nameComposed)).toBe(normalizeName(nameDecomposed));
+
+    const incoming = [
+      {
+        rowNumber: 2,
+        name: nameDecomposed,
+        primaryContactName: 'Contact Person',
+        phone: '+919876500099',
+        expectedPartySize: 2,
+        isValid: true,
+      },
+    ];
+
+    const existing = [
+      { id: '1', name: nameComposed, primaryContactName: 'Contact Person', phone: '+919876500099' },
+    ];
+
+    const { duplicates } = checkDuplicates(incoming, existing);
+    expect(duplicates).toHaveLength(1);
+  });
+
+  it('ensures two empty phone numbers never match each other as duplicate phones', () => {
+    const incoming = [
+      {
+        rowNumber: 2,
+        name: 'Household Without Phone 1',
+        primaryContactName: 'Contact One',
+        phone: '',
+        expectedPartySize: 2,
+        isValid: true,
+      },
+      {
+        rowNumber: 3,
+        name: 'Household Without Phone 2',
+        primaryContactName: 'Contact Two',
+        phone: '',
+        expectedPartySize: 3,
+        isValid: true,
+      },
+    ];
+
+    const { duplicates, uniqueRows } = checkDuplicates(incoming, []);
+    expect(duplicates).toHaveLength(0);
+    expect(uniqueRows).toHaveLength(2);
+  });
+
+  it('allows shared phone number across distinct households when allowSharedPhone is enabled', () => {
+    const incoming = [
+      {
+        rowNumber: 2,
+        name: 'Sharma Elders Household',
+        primaryContactName: 'Dinesh Sharma',
+        phone: '+919876543210', // Shared phone
+        expectedPartySize: 2,
+        isValid: true,
+      },
+    ];
+
+    const existing = [
+      { id: '1', name: 'Sharma Son Household', primaryContactName: 'Rohit Sharma', phone: '+919876543210' },
+    ];
+
+    // Default (strict): flags as duplicate warning
+    const defaultRes = checkDuplicates(incoming, existing);
+    expect(defaultRes.duplicates).toHaveLength(1);
+    expect(defaultRes.uniqueRows).toHaveLength(0);
+
+    // Override enabled: allowed because primaryContactName and household name are distinct
+    const overrideRes = checkDuplicates(incoming, existing, { allowSharedPhone: true });
+    expect(overrideRes.duplicates).toHaveLength(0);
+    expect(overrideRes.uniqueRows).toHaveLength(1);
+  });
 });

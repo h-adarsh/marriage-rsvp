@@ -27,3 +27,8 @@ npm run db:seed --workspace=server
 # Start development servers (frontend on :5173, backend on :5001)
 npm run dev
 ```
+
+## Deployment & Production Hosting
+- **Origin & CSRF Configuration**: In production, set `CLIENT_URL=https://your-frontend-domain.com`. For multi-domain deployments, add comma-separated origins to `ALLOWED_ORIGINS`.
+- **SameSite Cookies**: Because sessions use `SameSite=Strict`, the frontend and API should be hosted on the same root site (e.g., `app.example.com` and `api.example.com`, or behind a reverse proxy routing `/api` to the backend). If cross-site domains are used, `SameSite=Lax` or token authorization must be configured.
+
