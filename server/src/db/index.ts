@@ -5,8 +5,14 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: '../.env' });
 dotenv.config();
+const isTest = process.env.NODE_ENV === 'test';
+const defaultUri = isTest
+  ? (process.env.DATABASE_TEST_URL || 'mysql://root:password@localhost:3306/wedding_rsvp_test')
+  : (process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/wedding_rsvp');
 
-const connectionUri = process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/wedding_rsvp';
+const connectionUri = isTest && process.env.DATABASE_TEST_URL
+  ? process.env.DATABASE_TEST_URL
+  : defaultUri;
 
 // Create a connection pool for efficient query execution
 export const pool = mysql.createPool(connectionUri);
