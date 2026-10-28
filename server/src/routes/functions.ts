@@ -391,26 +391,28 @@ functionsRouter.post('/:id/rsvps/:householdId/reset', async (req: Request, res: 
       .limit(1);
 
     if (existingRsvp) {
-      await db.insert(auditLog).values({
-        id: crypto.randomUUID(),
-        weddingId: owned.wedding.id,
-        actorType: 'planner',
-        actorId: req.user!.id,
-        action: 'reset_rsvp',
-        entityType: 'rsvp',
-        entityId: existingRsvp.id,
-        oldValues: {
-          status: existingRsvp.status,
-          partySize: existingRsvp.partySize,
-          vegCount: existingRsvp.vegCount,
-          nonvegCount: existingRsvp.nonvegCount,
-        },
-        newValues: null,
-      });
+      await db.transaction(async (tx) => {
+        await tx.insert(auditLog).values({
+          id: crypto.randomUUID(),
+          weddingId: owned.wedding.id,
+          actorType: 'planner',
+          actorId: req.user!.id,
+          action: 'reset_rsvp',
+          entityType: 'rsvp',
+          entityId: existingRsvp.id,
+          oldValues: {
+            status: existingRsvp.status,
+            partySize: existingRsvp.partySize,
+            vegCount: existingRsvp.vegCount,
+            nonvegCount: existingRsvp.nonvegCount,
+          },
+          newValues: null,
+        });
 
-      await db
-        .delete(rsvps)
-        .where(and(eq(rsvps.functionId, functionId), eq(rsvps.householdId, householdId)));
+        await tx
+          .delete(rsvps)
+          .where(and(eq(rsvps.functionId, functionId), eq(rsvps.householdId, householdId)));
+      });
     }
 
     res.json({ success: true, message: 'RSVP reset successfully' });
