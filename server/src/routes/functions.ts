@@ -79,16 +79,40 @@ functionsRouter.delete('/:id', async (req: Request, res: Response): Promise<void
   }
 });
 
-const invitationAssignmentSchema = z.object({
-  // Delta interface: preferred to prevent stale browser tab overwrites
-  add: z.array(z.string()).max(500, 'Add list cannot exceed 500 households').optional(),
-  remove: z.array(z.string()).max(500, 'Remove list cannot exceed 500 households').optional(),
-  // Full-list replacement interface: supported for backwards compatibility
-  householdIds: z.array(z.string()).max(500, 'Household list cannot exceed 500 households').optional(),
-}).refine(
-  (data) => data.add !== undefined || data.remove !== undefined || data.householdIds !== undefined,
-  { message: 'Must provide either "add"/"remove" lists or "householdIds"' }
-);
+const invitationAssignmentSchema = z
+  .object({
+    // Delta interface: preferred to prevent stale browser tab overwrites
+    add: z.array(z.string()).max(500, 'Add list cannot exceed 500 households').optional(),
+    remove: z.array(z.string()).max(500, 'Remove list cannot exceed 500 households').optional(),
+    // Full-list replacement interface: supported for backwards compatibility
+    householdIds: z.array(z.string()).max(500, 'Household list cannot exceed 500 households').optional(),
+  })
+  .refine(
+    (data) => data.add !== undefined || data.remove !== undefined || data.householdIds !== undefined,
+    { message: 'Must provide either "add"/"remove" lists or "householdIds"' }
+  )
+  .refine(
+    (data) => {
+      // Disallow mixing householdIds with add/remove
+      if (data.householdIds !== undefined && (data.add !== undefined || data.remove !== undefined)) {
+        return false;
+      }
+      return true;
+    },
+    { message: 'Cannot mix "householdIds" with "add" or "remove"' }
+  )
+  .refine(
+    (data) => {
+      // Disallow same ID in both add and remove
+      if (data.add && data.remove) {
+        const removeSet = new Set(data.remove);
+        const hasOverlap = data.add.some((id) => removeSet.has(id));
+        return !hasOverlap;
+      }
+      return true;
+    },
+    { message: 'The same household ID cannot be present in both add and remove' }
+  );
 
 /**
  * GET /api/functions/:id/invitations - List all households in wedding with invited status
@@ -161,10 +185,10 @@ functionsRouter.get('/:id/invitations', async (req: Request, res: Response): Pro
  * Invariants & Protections:
  * 1. Bulk-endpoint IDOR: Every household ID in add/remove/householdIds must belong to the function's wedding.
  * 2. Capped at 500 households per batch operation.
- * 3. Atomic Database Transaction: Wrapped in db.transaction to prevent partial failures.
- * 4. Duplicate IDs in the input arrays are deduplicated and handled idempotently.
- * 5. RSVP Protection: Cannot unassign a household that has already submitted an RSVP ('yes', 'no', or 'maybe').
- *    Unassigning a household with no response/reply succeeds cleanly.
+ * 3. Atomic Database Transaction: Wrapped in db.transaction to prevent partial failures and race conditions.
+ * 4. Mutual exclusivity: Cannot mix 'householdIds' with delta 'add'/'remove', and cannot send the same ID in both.
+ * 5. RSVP Protection: Cannot unassign a household that has an active RSVP ('yes' or 'maybe') protecting headcount.
+ *    Households that replied 'no' can be unassigned, cleanly deleting their decline response.
  */
 functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Promise<void> => {
   const functionId = req.params.id;
@@ -232,50 +256,74 @@ functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Pr
       }
     }
 
-    // RSVP Protection Rule:
-    // Block unassigning any household that has already submitted an RSVP ('yes', 'no', or 'maybe')
-    if (toUnassign.length > 0) {
-      const repliedRsvps = await db
-        .select({ householdId: rsvps.householdId, status: rsvps.status })
-        .from(rsvps)
-        .where(
-          and(
-            eq(rsvps.functionId, functionId),
-            inArray(rsvps.householdId, toUnassign),
-            inArray(rsvps.status, ['yes', 'no', 'maybe'])
-          )
-        );
+    // Atomic Database Transaction: all-or-nothing with race condition prevention
+    try {
+      await db.transaction(async (tx) => {
+        if (toUnassign.length > 0) {
+          // Check for existing active RSVPs within the transaction to prevent races
+          const repliedRsvps = await tx
+            .select({ householdId: rsvps.householdId, status: rsvps.status })
+            .from(rsvps)
+            .where(
+              and(
+                eq(rsvps.functionId, functionId),
+                inArray(rsvps.householdId, toUnassign)
+              )
+            );
 
-      if (repliedRsvps.length > 0) {
-        res.status(400).json({
-          error: "Cannot unassign household that has already submitted an RSVP ('yes', 'no', or 'maybe').",
-        });
+          const activeReplied = repliedRsvps.filter(
+            (r) => r.status === 'yes' || r.status === 'maybe'
+          );
+
+          if (activeReplied.length > 0) {
+            throw new Error(
+              "Cannot unassign household that has already submitted an active RSVP ('yes' or 'maybe'). Reset RSVP first."
+            );
+          }
+
+          // For households that replied 'no', remove their decline RSVP record
+          const declinedHouseholds = repliedRsvps
+            .filter((r) => r.status === 'no')
+            .map((r) => r.householdId);
+
+          if (declinedHouseholds.length > 0) {
+            await tx
+              .delete(rsvps)
+              .where(
+                and(
+                  eq(rsvps.functionId, functionId),
+                  inArray(rsvps.householdId, declinedHouseholds)
+                )
+              );
+          }
+
+          await tx
+            .delete(householdFunctions)
+            .where(
+              and(
+                eq(householdFunctions.functionId, functionId),
+                inArray(householdFunctions.householdId, toUnassign)
+              )
+            );
+        }
+
+        if (toAssign.length > 0) {
+          const newRows = toAssign.map((householdId) => ({
+            id: crypto.randomUUID(),
+            householdId,
+            functionId,
+          }));
+          await tx.insert(householdFunctions).values(newRows);
+        }
+      });
+    } catch (txError: unknown) {
+      const msg = txError instanceof Error ? txError.message : String(txError);
+      if (msg.includes('Cannot unassign household that has already submitted an active RSVP')) {
+        res.status(400).json({ error: msg });
         return;
       }
+      throw txError;
     }
-
-    // Atomic Database Transaction: all-or-nothing
-    await db.transaction(async (tx) => {
-      if (toUnassign.length > 0) {
-        await tx
-          .delete(householdFunctions)
-          .where(
-            and(
-              eq(householdFunctions.functionId, functionId),
-              inArray(householdFunctions.householdId, toUnassign)
-            )
-          );
-      }
-
-      if (toAssign.length > 0) {
-        const newRows = toAssign.map((householdId) => ({
-          id: crypto.randomUUID(),
-          householdId,
-          functionId,
-        }));
-        await tx.insert(householdFunctions).values(newRows);
-      }
-    });
 
     // Query accurate total invited count
     const totalInvited = await db
@@ -295,5 +343,42 @@ functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Pr
     res.status(500).json({ error: 'Failed to update function invitations' });
   }
 });
+
+/**
+ * POST /api/functions/:id/rsvps/:householdId/reset - Reset an RSVP response for a household
+ */
+functionsRouter.post('/:id/rsvps/:householdId/reset', async (req: Request, res: Response): Promise<void> => {
+  const { id: functionId, householdId } = req.params;
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    // Verify household belongs to this wedding (IDOR defense)
+    const [household] = await db
+      .select({ id: households.id })
+      .from(households)
+      .where(and(eq(households.id, householdId), eq(households.weddingId, owned.wedding.id)))
+      .limit(1);
+
+    if (!household) {
+      res.status(404).json({ error: 'Household not found' });
+      return;
+    }
+
+    await db
+      .delete(rsvps)
+      .where(and(eq(rsvps.functionId, functionId), eq(rsvps.householdId, householdId)));
+
+    res.json({ success: true, message: 'RSVP reset successfully' });
+  } catch (error) {
+    console.error('[functions] Reset RSVP error:', error);
+    res.status(500).json({ error: 'Failed to reset RSVP' });
+  }
+});
+
 
 

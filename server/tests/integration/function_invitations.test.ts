@@ -170,7 +170,7 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
       .send({ householdIds: [householdA2Id] });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/Cannot unassign household that has already submitted an RSVP/i);
+    expect(res.body.error).toMatch(/Cannot unassign household that has already submitted an active RSVP/i);
   });
 
   it('supports delta add and remove operations to prevent stale browser tab overwrites', async () => {
@@ -233,6 +233,212 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
     const a2 = listRes.body.find((h: any) => h.id === householdA2Id);
     expect(a2?.invited).toBe(false);
   });
+
+  it('rejects delta add containing a foreign household (IDOR defense)', async () => {
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [householdBId] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/do not belong to this wedding/i);
+  });
+
+  it('rejects delta remove containing a foreign household (IDOR defense)', async () => {
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [householdBId] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/do not belong to this wedding/i);
+  });
+
+  it('rejects mixing householdIds with delta add or remove (mode exclusivity)', async () => {
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ householdIds: [householdA1Id], add: [householdA2Id] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/cannot mix "householdIds" with "add" or "remove"/i);
+  });
+
+  it('rejects request when the same household ID is present in both add and remove', async () => {
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [householdA2Id], remove: [householdA2Id] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/cannot be present in both add and remove/i);
+  });
+
+  it('GET /api/functions/:id/invitations returns accurate rsvpStatus and partySize for all states', async () => {
+    // 1. Create a third household for Wedding A to test 'no' and 'maybe' responses
+    const hhA3 = await request(app)
+      .post(`/api/weddings/${weddingAId}/households`)
+      .set('Cookie', cookieA)
+      .send({ name: "Gupta Family", primaryContactName: "Anita Gupta", phone: "+919876543203", expectedPartySize: 2 });
+    const householdA3Id = hhA3.body.id;
+
+    // 2. Invite householdA3Id
+    await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [householdA3Id] });
+
+    // 3. Insert 'no' RSVP for householdA3Id
+    await db.insert(rsvps).values({
+      id: crypto.randomUUID(),
+      functionId: functionAId,
+      householdId: householdA3Id,
+      status: 'no',
+      partySize: 0,
+      vegCount: 0,
+      nonvegCount: 0,
+    });
+
+    // 4. Fetch invitations and verify statuses
+    const res = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+
+    expect(res.status).toBe(200);
+
+    const a1 = res.body.find((h: any) => h.id === householdA1Id);
+    const a2 = res.body.find((h: any) => h.id === householdA2Id);
+    const a3 = res.body.find((h: any) => h.id === householdA3Id);
+
+    // Household A1 has 'yes' RSVP with 3 guests
+    expect(a1?.invited).toBe(true);
+    expect(a1?.rsvpStatus).toBe('yes');
+    expect(a1?.rsvpPartySize).toBe(3);
+
+    // Household A2 is not invited
+    expect(a2?.invited).toBe(false);
+    expect(a2?.rsvpStatus).toBeNull();
+    expect(a2?.rsvpPartySize).toBeNull();
+
+    // Household A3 has 'no' RSVP
+    expect(a3?.invited).toBe(true);
+    expect(a3?.rsvpStatus).toBe('no');
+    expect(a3?.rsvpPartySize).toBe(0);
+  });
+
+  it('allows uninviting a household that replied "no" (decline has no headcount to protect)', async () => {
+    // Household A3 has a 'no' RSVP. Uninviting should succeed.
+    // Fetch all households to locate A3
+    const listRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a3 = listRes.body.find((h: any) => h.phone === '+919876543203');
+    expect(a3?.rsvpStatus).toBe('no');
+
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [a3.id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.removedCount).toBe(1);
+
+    // Verify A3 is now uninvited and decline record was cleaned up
+    const afterRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a3After = afterRes.body.find((h: any) => h.id === a3.id);
+    expect(a3After?.invited).toBe(false);
+  });
+
+  it('provides Reset RSVP endpoint allowing planners to reset active attendance and uninvite', async () => {
+    // 1. Attempting to unassign household A1 (status: 'yes') is blocked
+    const blockedRes = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [householdA1Id] });
+
+    expect(blockedRes.status).toBe(400);
+    expect(blockedRes.body.error).toMatch(/Cannot unassign household that has already submitted an active RSVP/i);
+
+    // 2. Call Reset RSVP endpoint
+    const resetRes = await request(app)
+      .post(`/api/functions/${functionAId}/rsvps/${householdA1Id}/reset`)
+      .set('Cookie', cookieA);
+
+    expect(resetRes.status).toBe(200);
+    expect(resetRes.body.success).toBe(true);
+
+    // 3. Verify GET shows rsvpStatus is now cleared
+    const listRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a1 = listRes.body.find((h: any) => h.id === householdA1Id);
+    expect(a1?.rsvpStatus).toBeNull();
+    expect(a1?.rsvpPartySize).toBeNull();
+
+    // 4. Now unassigning household A1 succeeds cleanly
+    const unassignRes = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [householdA1Id] });
+
+    expect(unassignRes.status).toBe(200);
+    expect(unassignRes.body.removedCount).toBe(1);
+  });
+
+  it('proves database transaction rollback: all-or-nothing on failure', async () => {
+    // 1. Re-invite householdA2Id
+    await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [householdA2Id] });
+
+    // 2. Set an active RSVP ('yes') on householdA2Id
+    await db.insert(rsvps).values({
+      id: crypto.randomUUID(),
+      functionId: functionAId,
+      householdId: householdA2Id,
+      status: 'yes',
+      partySize: 4,
+      vegCount: 4,
+      nonvegCount: 0,
+    });
+
+    // 3. Re-invite householdA1Id
+    await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [householdA1Id] });
+
+    // Current state: both A1 and A2 are invited
+    const beforeRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a1Before = beforeRes.body.find((h: any) => h.id === householdA1Id);
+    const a2Before = beforeRes.body.find((h: any) => h.id === householdA2Id);
+    expect(a1Before?.invited).toBe(true);
+    expect(a2Before?.invited).toBe(true);
+
+    // 4. Send a batch remove containing both A1 (unlocked) AND A2 (locked 'yes' RSVP).
+    // The entire transaction must fail and roll back: A1 must NOT be uninvited!
+    const failedBatchRes = await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ remove: [householdA1Id, householdA2Id] });
+
+    expect(failedBatchRes.status).toBe(400);
+
+    // 5. Verify that A1 was NOT uninvited because the transaction rolled back atomically
+    const afterRes = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a1After = afterRes.body.find((h: any) => h.id === householdA1Id);
+    const a2After = afterRes.body.find((h: any) => h.id === householdA2Id);
+    expect(a1After?.invited).toBe(true);
+    expect(a2After?.invited).toBe(true);
+  });
 });
+
 
 
