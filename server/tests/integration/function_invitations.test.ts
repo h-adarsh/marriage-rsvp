@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import crypto from 'crypto';
+import { eq, and } from 'drizzle-orm';
 import { app } from '../../src/app';
 import { db } from '../../src/db';
-import { rsvps } from '../../src/db/schema';
+import { rsvps, auditLog, householdFunctions } from '../../src/db/schema';
 
 describe('Task T2.1: Function Invitation Assignments (household_functions)', () => {
   let cookieA: string;
@@ -387,7 +388,7 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
     expect(unassignRes.body.removedCount).toBe(1);
   });
 
-  it('proves database transaction rollback: all-or-nothing on failure', async () => {
+  it('rejects batch unassign when any household has an active RSVP, leaving existing assignments untouched', async () => {
     // 1. Re-invite householdA2Id
     await request(app)
       .post(`/api/functions/${functionAId}/invitations`)
@@ -421,7 +422,7 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
     expect(a2Before?.invited).toBe(true);
 
     // 4. Send a batch remove containing both A1 (unlocked) AND A2 (locked 'yes' RSVP).
-    // The entire transaction must fail and roll back: A1 must NOT be uninvited!
+    // The entire request must fail: A1 must NOT be uninvited!
     const failedBatchRes = await request(app)
       .post(`/api/functions/${functionAId}/invitations`)
       .set('Cookie', cookieA)
@@ -429,7 +430,7 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
 
     expect(failedBatchRes.status).toBe(400);
 
-    // 5. Verify that A1 was NOT uninvited because the transaction rolled back atomically
+    // 5. Verify that A1 was NOT uninvited
     const afterRes = await request(app)
       .get(`/api/functions/${functionAId}/invitations`)
       .set('Cookie', cookieA);
@@ -438,7 +439,89 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
     expect(a1After?.invited).toBe(true);
     expect(a2After?.invited).toBe(true);
   });
+
+  it('cross-planner protection: Planner B cannot reset Planner A RSVP (returns 404)', async () => {
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/rsvps/${householdA2Id}/reset`)
+      .set('Cookie', cookieB);
+    expect(res.status).toBe(404);
+  });
+
+  it('cross-wedding protection: cannot reset household from another wedding on function (returns 404)', async () => {
+    const res = await request(app)
+      .post(`/api/functions/${functionAId}/rsvps/${householdBId}/reset`)
+      .set('Cookie', cookieA);
+    expect(res.status).toBe(404);
+  });
+
+  it('records audit_log entry when an RSVP is reset by planner', async () => {
+    // householdA2Id currently has an active RSVP
+    const resetRes = await request(app)
+      .post(`/api/functions/${functionAId}/rsvps/${householdA2Id}/reset`)
+      .set('Cookie', cookieA);
+    expect(resetRes.status).toBe(200);
+
+    // Check audit_log table
+    const logs = await db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.weddingId, weddingAId), eq(auditLog.action, 'reset_rsvp')));
+
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    expect(logs[0].actorType).toBe('planner');
+    expect(logs[0].action).toBe('reset_rsvp');
+  });
+
+  it('proves database transaction rollback: mutations are rolled back when an error is thrown midway', async () => {
+    // 1. Insert a test household assignment
+    const testHh = await request(app)
+      .post(`/api/weddings/${weddingAId}/households`)
+      .set('Cookie', cookieA)
+      .send({ name: "Rollback Test Family", primaryContactName: "Test Contact", phone: "+919876543288", expectedPartySize: 2 });
+    const testHhId = testHh.body.id;
+
+    // 2. Assign to functionA
+    await request(app)
+      .post(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA)
+      .send({ add: [testHhId] });
+
+    // Verify assignment exists before transaction
+    const before = await db
+      .select()
+      .from(householdFunctions)
+      .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
+    expect(before).toHaveLength(1);
+
+    // 3. Attempt a transaction that executes a DELETE and then throws an error
+    await expect(
+      db.transaction(async (tx) => {
+        // Step A: Execute DELETE inside tx
+        await tx
+          .delete(householdFunctions)
+          .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
+
+        // Verify inside tx that the row was deleted
+        const insideTx = await tx
+          .select()
+          .from(householdFunctions)
+          .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
+        expect(insideTx).toHaveLength(0);
+
+        // Step B: Force an intentional error to trigger rollback
+        throw new Error('Simulated mid-transaction database failure');
+      })
+    ).rejects.toThrow('Simulated mid-transaction database failure');
+
+    // 4. Verify outside the transaction that the row STILL EXISTS (rollback succeeded)
+    const after = await db
+      .select()
+      .from(householdFunctions)
+      .where(and(eq(householdFunctions.functionId, functionAId), eq(householdFunctions.householdId, testHhId)));
+    expect(after).toHaveLength(1);
+  });
 });
+
 
 
 

@@ -107,4 +107,30 @@ Verma Family,Sanjay Verma,+919876500011,4,Trailing blank
     expect(res.status).toBe(413);
     expect(res.body.error).toMatch(/exceeds 2mb/i);
   });
+
+  it('rejects commit when fileHash does not match uploaded file content (file changed after preview)', async () => {
+    const csvContent = `Household Name,Primary Contact,Phone Number,Party Size\nPatel Family,Suresh Patel,+919876500077,3`;
+    const mismatchedHash = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+
+    const res = await request(app)
+      .post(`/api/weddings/${weddingId}/households/import-csv?dryRun=false&fileHash=${mismatchedHash}`)
+      .set('Cookie', cookie)
+      .attach('file', Buffer.from(csvContent, 'utf-8'), 'patel.csv');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/file content has changed since preview/i);
+  });
+
+  it('safely handles invalid, non-numeric, or out-of-range overrideRows without crashing', async () => {
+    const csvContent = `Household Name,Primary Contact,Phone Number,Party Size\nNair Family,Ravi Nair,+919876500078,2`;
+
+    const res = await request(app)
+      .post(`/api/weddings/${weddingId}/households/import-csv?dryRun=true&overrideRows=abc,-5,999999`)
+      .set('Cookie', cookie)
+      .attach('file', Buffer.from(csvContent, 'utf-8'), 'nair.csv');
+
+    expect(res.status).toBe(200);
+    expect(res.body.validCount).toBe(1);
+  });
 });
+
