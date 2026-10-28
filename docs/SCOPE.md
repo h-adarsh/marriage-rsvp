@@ -139,15 +139,15 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 ### Milestone 2: Invitations per Function, Private Links & Mobile RSVP (Weeks 3–4)
 - [x] **T2.1**: `household_functions` backend assignment APIs (`GET /api/functions/:id/invitations`, `POST /api/functions/:id/invitations` with bulk IDOR verification across weddings, batch cap of 500, idempotency, mode exclusivity, and protection preventing unassigning households with active RSVPs). *[2.0h]*
 - [x] **T2.2**: Function invitation management frontend (Assign households to functions via checklists, delta save, bulk actions, and Reset RSVP action). *[2.0h]*
-- **T2.3**: Public token lookup & verification service (Finds household by 128-bit token, dual-key rate limiting by IP + token, trust proxy config, returns uniform 404 for invalid/unknown tokens, minimal response payload with zero PII, anti-leak headers: `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, `X-Robots-Tag: noindex`). *[1.5h]*
-- **T2.4**: WhatsApp share link generator (`wa.me/<phone>?text=...` with personalized invite message and link on household cards). *[1.5h]*
+- **T2.3**: Public token lookup & verification service (Finds household by 128-bit token, dual-key rate limiting with strict invalid token per-IP limit and generous valid lookup limit, reads `TRUST_PROXY` from env var, returns uniform 404 for invalid/unknown tokens, minimal response payload with zero PII, anti-leak headers: `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, `X-Robots-Tag: noindex`). *[1.5h]*
 - **T2.4b**: Invite link revocation & token regeneration endpoint (`POST /api/households/:id/regenerate-token`, invalidates leaked token, issues new unguessable 128-bit token, tests that old token returns 404 - must be built before public deploy). *[1.0h]*
-- **T2.5**: Public RSVP read & write API (`GET /api/rsvp/:token` returning invited functions & existing RSVPs, `POST /api/rsvp/:token` with unique `(function_id, household_id)` upsert and server-side `veg + nonveg = party_size` validation built on T2.3). *[2.0h]*
-- **T2.6**: Rate limiting, brute-force defense & token scoping tests (Verify 429 rate limit, uniform token errors, and isolation test that Household A token cannot read or modify Household B). *[1.5h]*
-- **T2.7**: Mobile-first Guest RSVP UI (Clean mobile layout, function list cards, Yes/No/Maybe selectors, veg/non-veg inputs). *[2.0h]*
-- **T2.8**: Guest RSVP submission flow (Client-side validation, submit handling, confirmation view, return-to-edit capability). *[2.0h]*
-- **T2.9**: Audit log recording for RSVP updates (tracking timestamp, changes, source). *[1.5h]*
-*M2 Subtotal: 17.0 hours*
+- **T2.5**: Public RSVP submission API (`POST /api/rsvp/:token` with `SELECT ... FOR UPDATE` row lock on `household_functions`, `veg + nonveg = party_size` validation, and concurrency test). *[2.0h]*
+- **T2.7 & T2.8**: Mobile-first Guest RSVP UI & submission flow (Mobile layout, function list cards, Yes/No/Maybe selectors, veg/non-veg inputs, instant validation, confirmation view, return-to-edit). *[2.5h]*
+- **M2-Deploy**: Deployment to free-tier hosting (Verify cookie, CORS, origin, and capability URLs on live domain). *[1.0h]*
+- **T2.4**: WhatsApp share link generator (`wa.me/<phone>?text=...` with personalized invite message and live domain link on household cards). *[1.5h]*
+- **T2.9**: Audit log recording for guest RSVP submissions and updates (tracking timestamp, changes, source). *[1.0h]*
+*M2 Subtotal: 17.5 hours*
+
 
 ---
 
