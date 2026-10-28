@@ -31,3 +31,16 @@ export interface CreateFunctionInput {
   dateTime: string;
   venue: string;
 }
+
+export interface FunctionInvitationHousehold {
+  id: string;
+  name: string;
+  primaryContactName: string;
+  phone: string;
+  expectedPartySize: number;
+  notes: string | null;
+  invited: boolean;
+  rsvpStatus: 'yes' | 'no' | 'maybe' | null;
+  rsvpPartySize: number | null;
+}
+

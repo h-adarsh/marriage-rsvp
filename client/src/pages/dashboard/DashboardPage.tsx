@@ -10,6 +10,7 @@ import {
   Clock,
   Trash2,
   ChevronDown,
+  ChevronRight,
   Loader2,
   Sparkles,
   Users,
@@ -27,6 +28,7 @@ import { CreateWeddingModal } from '../../components/CreateWeddingModal';
 import { CreateFunctionModal } from '../../components/CreateFunctionModal';
 import { CreateHouseholdModal } from '../../components/CreateHouseholdModal';
 import { CsvImportModal } from '../../components/CsvImportModal';
+import { FunctionInvitationsModal } from '../../components/FunctionInvitationsModal';
 import { HouseholdList } from '../../components/HouseholdList';
 
 type DashboardTab = 'functions' | 'guests';
@@ -41,6 +43,7 @@ export const DashboardPage: React.FC = () => {
 
   const [functions, setFunctions] = useState<WeddingFunction[]>([]);
   const [households, setHouseholds] = useState<Household[]>([]);
+  const [selectedFunctionForInvites, setSelectedFunctionForInvites] = useState<WeddingFunction | null>(null);
 
   const [isLoadingWeddings, setIsLoadingWeddings] = useState(true);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
@@ -388,10 +391,17 @@ export const DashboardPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                          <span>Invites & RSVPs</span>
-                          <span className="font-semibold text-rose-600">Active</span>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFunctionForInvites(fn)}
+                          className="mt-4 pt-3 border-t border-slate-100 w-full flex items-center justify-between text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors group"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-rose-500 group-hover:scale-110 transition-transform" />
+                            <span>Manage Invitations</span>
+                          </span>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -444,8 +454,18 @@ export const DashboardPage: React.FC = () => {
             onClose={() => setIsImportModalOpen(false)}
             onImportComplete={() => loadWeddingData(activeWedding.id)}
           />
+
+          <FunctionInvitationsModal
+            isOpen={Boolean(selectedFunctionForInvites)}
+            weddingFunction={selectedFunctionForInvites}
+            onClose={() => setSelectedFunctionForInvites(null)}
+            onInvitationsUpdated={() => {
+              if (activeWedding) loadWeddingData(activeWedding.id);
+            }}
+          />
         </>
       )}
     </div>
   );
 };
+

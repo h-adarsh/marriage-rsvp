@@ -125,11 +125,28 @@ functionsRouter.get('/:id/invitations', async (req: Request, res: Response): Pro
 
     const assignedSet = new Set(assignedRows.map((r) => r.householdId));
 
-    // 3. Map to result array with invited flag
-    const result = allHouseholds.map((h) => ({
-      ...h,
-      invited: assignedSet.has(h.id),
-    }));
+    // 3. Get existing RSVPs for this function to display reply status
+    const rsvpRows = await db
+      .select({
+        householdId: rsvps.householdId,
+        status: rsvps.status,
+        partySize: rsvps.partySize,
+      })
+      .from(rsvps)
+      .where(eq(rsvps.functionId, functionId));
+
+    const rsvpMap = new Map(rsvpRows.map((r) => [r.householdId, r]));
+
+    // 4. Map to result array with invited flag and reply status
+    const result = allHouseholds.map((h) => {
+      const rsvp = rsvpMap.get(h.id);
+      return {
+        ...h,
+        invited: assignedSet.has(h.id),
+        rsvpStatus: rsvp ? rsvp.status : null,
+        rsvpPartySize: rsvp ? rsvp.partySize : null,
+      };
+    });
 
     res.json(result);
   } catch (error) {
