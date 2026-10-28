@@ -59,7 +59,7 @@ export interface CsvImportPreviewResponse {
   invalidCount: number;
   duplicateCount: number;
   toImportCount: number;
-  duplicates: Array<{ rowNumber: number; name: string; phone: string; reason: string }>;
+  duplicates: Array<{ rowNumber: number; name: string; phone: string; reason: string; canOverride?: boolean }>;
   invalidRows: Array<{ rowNumber: number; name: string; phone: string; validationError?: string }>;
   previewRows: Array<{
     rowNumber: number;
@@ -76,7 +76,7 @@ export interface CsvImportCommitResponse {
   importedCount: number;
   duplicateCount: number;
   invalidCount: number;
-  duplicates: Array<{ rowNumber: number; name: string; phone: string; reason: string }>;
+  duplicates: Array<{ rowNumber: number; name: string; phone: string; reason: string; canOverride?: boolean }>;
   invalidRows: Array<{ rowNumber: number; name: string; phone: string; validationError?: string }>;
   importedHouseholds: Array<{
     id: string;
@@ -91,12 +91,18 @@ export interface CsvImportCommitResponse {
 export async function importHouseholdCsvApi(
   weddingId: string,
   file: File,
-  dryRun = false
+  dryRun = false,
+  overrideRows?: number[]
 ): Promise<CsvImportPreviewResponse | CsvImportCommitResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`/api/weddings/${weddingId}/households/import-csv?dryRun=${dryRun}`, {
+  let url = `/api/weddings/${weddingId}/households/import-csv?dryRun=${dryRun}`;
+  if (overrideRows && overrideRows.length > 0) {
+    url += `&overrideRows=${overrideRows.join(',')}`;
+  }
+
+  const res = await fetch(url, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -104,3 +110,4 @@ export async function importHouseholdCsvApi(
 
   return handleResponse<CsvImportPreviewResponse | CsvImportCommitResponse>(res);
 }
+

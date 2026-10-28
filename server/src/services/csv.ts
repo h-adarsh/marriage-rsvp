@@ -14,6 +14,7 @@ export interface DuplicateReport {
   name: string;
   phone: string;
   reason: string;
+  canOverride?: boolean;
 }
 
 export interface ExistingHouseholdSummary {
@@ -161,6 +162,7 @@ export function processHouseholdCsv(csvContent: string): {
 
 export interface DuplicateCheckOptions {
   allowSharedPhone?: boolean;
+  overriddenRowNumbers?: number[];
 }
 
 /**
@@ -171,8 +173,8 @@ export interface DuplicateCheckOptions {
  * 1. Empty phone numbers NEVER match other empty phones.
  * 2. Exact match on both household name AND primary contact is always a duplicate.
  * 3. By default, duplicate phone numbers are flagged as duplicate warnings.
- *    If allowSharedPhone is enabled, distinct families sharing a phone number (e.g. manager/son)
- *    are permitted as long as name/contact differ.
+ *    If allowSharedPhone is enabled or row number is in overriddenRowNumbers,
+ *    distinct families sharing a phone number (e.g. manager/son) are permitted.
  */
 export function checkDuplicates(
   incomingRows: ParsedHouseholdRow[],
@@ -185,6 +187,7 @@ export function checkDuplicates(
   const duplicates: DuplicateReport[] = [];
   const uniqueRows: ParsedHouseholdRow[] = [];
   const allowSharedPhone = options?.allowSharedPhone ?? false;
+  const overriddenSet = new Set(options?.overriddenRowNumbers || []);
 
   // Existing database lookup maps
   const existingPhones = new Map<string, string>();
@@ -210,6 +213,7 @@ export function checkDuplicates(
     const normName = normalizeName(row.name);
     const normContact = normalizeName(row.primaryContactName);
     const nameContactKey = normName && normContact ? `${normName}::${normContact}` : '';
+    const isOverridden = allowSharedPhone || overriddenSet.has(row.rowNumber);
 
     // 1. Check exact name AND primary contact duplicate against existing DB
     if (nameContactKey && existingNameAndContacts.has(nameContactKey)) {
@@ -218,6 +222,7 @@ export function checkDuplicates(
         name: row.name,
         phone: row.phone,
         reason: `Both household name and contact match existing household "${existingNameAndContacts.get(nameContactKey)}"`,
+        canOverride: false,
       });
       continue;
     }
@@ -229,28 +234,31 @@ export function checkDuplicates(
         name: row.name,
         phone: row.phone,
         reason: 'Duplicate household name and contact within the uploaded file',
+        canOverride: false,
       });
       continue;
     }
 
-    // 3. Check phone duplicate against existing DB (unless shared phone is explicitly allowed)
-    if (!allowSharedPhone && normPhone && existingPhones.has(normPhone)) {
+    // 3. Check phone duplicate against existing DB (unless shared phone is explicitly allowed or overridden for this row)
+    if (!isOverridden && normPhone && existingPhones.has(normPhone)) {
       duplicates.push({
         rowNumber: row.rowNumber,
         name: row.name,
         phone: row.phone,
         reason: `Phone matches existing household "${existingPhones.get(normPhone)}" (use override if shared phone across households)`,
+        canOverride: true,
       });
       continue;
     }
 
-    // 4. Check intra-batch phone duplicate (unless shared phone is explicitly allowed)
-    if (!allowSharedPhone && normPhone && seenPhones.has(normPhone)) {
+    // 4. Check intra-batch phone duplicate (unless shared phone is explicitly allowed or overridden for this row)
+    if (!isOverridden && normPhone && seenPhones.has(normPhone)) {
       duplicates.push({
         rowNumber: row.rowNumber,
         name: row.name,
         phone: row.phone,
         reason: 'Duplicate phone number within the uploaded file (use override if shared phone across households)',
+        canOverride: true,
       });
       continue;
     }
@@ -262,3 +270,4 @@ export function checkDuplicates(
 
   return { duplicates, uniqueRows };
 }
+

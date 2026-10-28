@@ -341,7 +341,18 @@ weddingsRouter.post(
         .where(eq(households.weddingId, weddingId));
 
       const allowSharedPhone = req.query.allowSharedPhone === 'true';
-      const { duplicates, uniqueRows } = checkDuplicates(validRows, existingHouseholds, { allowSharedPhone });
+      const overrideRowsRaw = req.query.overrideRows || (req.body && req.body.overrideRows);
+      const overriddenRowNumbers = overrideRowsRaw
+        ? String(overrideRowsRaw)
+            .split(',')
+            .map((s) => parseInt(s.trim(), 10))
+            .filter((n) => !isNaN(n))
+        : [];
+
+      const { duplicates, uniqueRows } = checkDuplicates(validRows, existingHouseholds, {
+        allowSharedPhone,
+        overriddenRowNumbers,
+      });
 
       // Dry run / preview mode
       const isDryRun = req.query.dryRun === 'true';

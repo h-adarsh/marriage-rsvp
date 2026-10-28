@@ -30,6 +30,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<CsvImportPreviewResponse | null>(null);
+  const [overriddenRows, setOverriddenRows] = useState<Set<number>>(new Set());
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
   const resetState = () => {
     setSelectedFile(null);
     setPreviewData(null);
+    setOverriddenRows(new Set());
     setIsAnalyzing(false);
     setIsCommitting(false);
     setErrorMsg(null);
@@ -99,6 +101,15 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
     }
   };
 
+  const toggleOverride = (rowNum: number) => {
+    setOverriddenRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowNum)) next.delete(rowNum);
+      else next.add(rowNum);
+      return next;
+    });
+  };
+
   const handleCommit = async () => {
     if (!selectedFile) return;
 
@@ -106,10 +117,12 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
     setErrorMsg(null);
 
     try {
+      const overrideArray = Array.from(overriddenRows);
       const response = (await importHouseholdCsvApi(
         weddingId,
         selectedFile,
-        false
+        false,
+        overrideArray
       )) as CsvImportCommitResponse;
 
       setSuccessMsg(
@@ -241,20 +254,38 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             {/* Duplicates Alert Banner */}
             {previewData.duplicates.length > 0 && (
               <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900">
-                <div className="flex items-center gap-1.5 font-bold mb-1">
+                <div className="flex items-center gap-1.5 font-bold mb-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  <span>{previewData.duplicates.length} Duplicate(s) Detected:</span>
+                  <span>{previewData.duplicates.length} Duplicate Warning(s) Detected:</span>
                 </div>
-                <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
-                  {previewData.duplicates.slice(0, 3).map((d, i) => (
-                    <li key={i}>
-                      Row {d.rowNumber}: <span className="font-semibold">{d.name}</span> ({d.phone}) — {d.reason}
-                    </li>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {previewData.duplicates.map((d, i) => (
+                    <div
+                      key={i}
+                      className="p-2.5 rounded-lg bg-white/90 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                    >
+                      <div className="text-[11px] text-amber-900 leading-tight">
+                        <span className="font-semibold text-slate-800">
+                          Row {d.rowNumber}: {d.name}
+                        </span>{' '}
+                        <span className="text-slate-500">({d.phone})</span>
+                        <div className="text-[10px] text-amber-700 mt-0.5">{d.reason}</div>
+                      </div>
+
+                      {d.canOverride !== false && (
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-semibold text-amber-900 bg-amber-100/70 hover:bg-amber-100 px-2.5 py-1 rounded-md border border-amber-300 flex-shrink-0 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={overriddenRows.has(d.rowNumber)}
+                            onChange={() => toggleOverride(d.rowNumber)}
+                            className="w-3.5 h-3.5 rounded text-rose-600 focus:ring-rose-500 border-amber-300"
+                          />
+                          <span>Import anyway (shared phone)</span>
+                        </label>
+                      )}
+                    </div>
                   ))}
-                  {previewData.duplicates.length > 3 && (
-                    <li>...and {previewData.duplicates.length - 3} more</li>
-                  )}
-                </ul>
+                </div>
               </div>
             )}
 
@@ -310,7 +341,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCommit}
-                  disabled={isCommitting || previewData.toImportCount === 0}
+                  disabled={isCommitting || (previewData.toImportCount + overriddenRows.size) === 0}
                   className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   {isCommitting ? (
@@ -319,7 +350,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                       <span>Importing...</span>
                     </>
                   ) : (
-                    <span>Import {previewData.toImportCount} Households</span>
+                    <span>Import {previewData.toImportCount + overriddenRows.size} Households</span>
                   )}
                 </button>
               </div>
