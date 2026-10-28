@@ -329,6 +329,8 @@ weddingsRouter.post(
         return;
       }
 
+      const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+
       // Fetch existing households for this wedding to detect duplicates
       const existingHouseholds = await db
         .select({
@@ -342,11 +344,14 @@ weddingsRouter.post(
 
       const allowSharedPhone = req.query.allowSharedPhone === 'true';
       const overrideRowsRaw = req.query.overrideRows || (req.body && req.body.overrideRows);
+      
+      // Strict validation: positive integers >= 2, capped at 500 entries
       const overriddenRowNumbers = overrideRowsRaw
         ? String(overrideRowsRaw)
             .split(',')
             .map((s) => parseInt(s.trim(), 10))
-            .filter((n) => !isNaN(n))
+            .filter((n) => !isNaN(n) && n >= 2 && n <= 10000)
+            .slice(0, 500)
         : [];
 
       const { duplicates, uniqueRows } = checkDuplicates(validRows, existingHouseholds, {
@@ -359,6 +364,7 @@ weddingsRouter.post(
       if (isDryRun) {
         res.json({
           dryRun: true,
+          fileHash,
           totalParsed: validRows.length + invalidRows.length,
           validCount: validRows.length,
           invalidCount: invalidRows.length,
@@ -368,6 +374,13 @@ weddingsRouter.post(
           invalidRows,
           previewRows: uniqueRows,
         });
+        return;
+      }
+
+      // Re-read file verification: check that file hasn't changed since preview
+      const expectedHash = req.query.fileHash || (req.body && req.body.fileHash);
+      if (expectedHash && expectedHash !== fileHash) {
+        res.status(400).json({ error: 'File content has changed since preview. Please review the file and try again.' });
         return;
       }
 

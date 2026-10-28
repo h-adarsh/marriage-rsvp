@@ -69,6 +69,7 @@ export interface CsvImportPreviewResponse {
     expectedPartySize: number;
     notes?: string;
   }>;
+  fileHash?: string;
 }
 
 export interface CsvImportCommitResponse {
@@ -92,7 +93,8 @@ export async function importHouseholdCsvApi(
   weddingId: string,
   file: File,
   dryRun = false,
-  overrideRows?: number[]
+  overrideRows?: number[],
+  fileHash?: string
 ): Promise<CsvImportPreviewResponse | CsvImportCommitResponse> {
   const formData = new FormData();
   formData.append('file', file);
@@ -100,6 +102,9 @@ export async function importHouseholdCsvApi(
   let url = `/api/weddings/${weddingId}/households/import-csv?dryRun=${dryRun}`;
   if (overrideRows && overrideRows.length > 0) {
     url += `&overrideRows=${overrideRows.join(',')}`;
+  }
+  if (fileHash) {
+    url += `&fileHash=${encodeURIComponent(fileHash)}`;
   }
 
   const res = await fetch(url, {

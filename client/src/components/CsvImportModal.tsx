@@ -122,7 +122,8 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         weddingId,
         selectedFile,
         false,
-        overrideArray
+        overrideArray,
+        previewData?.fileHash
       )) as CsvImportCommitResponse;
 
       setSuccessMsg(

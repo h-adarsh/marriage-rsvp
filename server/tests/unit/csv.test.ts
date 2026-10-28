@@ -320,5 +320,36 @@ Verma Family,Sunita Verma,+919876543212,0,Valid with fallback`;
     expect(res.uniqueRows).toHaveLength(1);
     expect(res.uniqueRows[0].rowNumber).toBe(2); // Row 2 was imported via per-row override
   });
+
+  it('NEVER allows overriding duplicates when both household name AND contact match (overrides only allowed for phone collisions)', () => {
+    const incoming = [
+      {
+        rowNumber: 2,
+        name: 'Sharma Family',
+        primaryContactName: 'Rajesh Sharma',
+        phone: '+919876543210',
+        expectedPartySize: 4,
+        isValid: true,
+      },
+    ];
+
+    const existing = [
+      { id: '1', name: 'Sharma Family', primaryContactName: 'Rajesh Sharma', phone: '+919876543299' },
+    ];
+
+    // Attempting override via overriddenRowNumbers: [2]
+    const resRowOverride = checkDuplicates(incoming, existing, { overriddenRowNumbers: [2] });
+    expect(resRowOverride.duplicates).toHaveLength(1);
+    expect(resRowOverride.duplicates[0].canOverride).toBe(false);
+    expect(resRowOverride.duplicates[0].reason).toMatch(/both household name and contact match/i);
+    expect(resRowOverride.uniqueRows).toHaveLength(0);
+
+    // Attempting override via allowSharedPhone: true
+    const resGlobalOverride = checkDuplicates(incoming, existing, { allowSharedPhone: true });
+    expect(resGlobalOverride.duplicates).toHaveLength(1);
+    expect(resGlobalOverride.duplicates[0].canOverride).toBe(false);
+    expect(resGlobalOverride.uniqueRows).toHaveLength(0);
+  });
 });
+
 
