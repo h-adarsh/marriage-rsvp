@@ -4,6 +4,7 @@ import { WeddingFunction, FunctionInvitationHousehold } from '../types/wedding';
 import {
   getFunctionInvitationsApi,
   updateFunctionInvitationsApi,
+  resetFunctionRsvpApi,
 } from '../api/weddings';
 import {
   Search,
@@ -42,6 +43,7 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [resettingId, setResettingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -79,6 +81,7 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
       setActiveTab('all');
       setErrorMsg(null);
       setSuccessMsg(null);
+      setResettingId(null);
     }
   }, [isOpen, weddingFunction, loadInvitations]);
 
@@ -168,8 +171,9 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
 
   // Toggle single household invitation
   const handleToggle = (household: FunctionInvitationHousehold) => {
-    // If household already replied, uninviting is forbidden by business rule
-    if (household.rsvpStatus) {
+    // Only lock active headcounts ('yes' and 'maybe').
+    // Declined households ('no') have zero headcount and can be uninvited cleanly.
+    if (household.rsvpStatus === 'yes' || household.rsvpStatus === 'maybe') {
       return;
     }
 
@@ -185,6 +189,34 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
     setErrorMsg(null);
   };
 
+  // Reset RSVP for a household to allow modifying or uninviting
+  const handleResetRsvp = async (householdId: string) => {
+    if (!weddingFunction) return;
+
+    setResettingId(householdId);
+    setErrorMsg(null);
+
+    try {
+      await resetFunctionRsvpApi(weddingFunction.id, householdId);
+      // Update local household record to pending
+      setHouseholds((prev) =>
+        prev.map((h) =>
+          h.id === householdId ? { ...h, rsvpStatus: null, rsvpPartySize: null } : h
+        )
+      );
+      setSuccessMsg('RSVP has been reset to pending. You can now modify the invitation.');
+      if (onInvitationsUpdated) {
+        onInvitationsUpdated();
+      }
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to reset RSVP';
+      setErrorMsg(msg);
+    } finally {
+      setResettingId(null);
+    }
+  };
+
   // Bulk invite visible uninvited
   const handleInviteVisible = () => {
     setInvitedIds((prev) => {
@@ -196,13 +228,13 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
     });
   };
 
-  // Bulk uninvite visible (only those with NO reply submitted)
+  // Bulk uninvite visible (skips locked active headcounts)
   const handleUninviteVisibleNoReply = () => {
     setInvitedIds((prev) => {
       const next = new Set(prev);
       for (const h of filteredHouseholds) {
-        // Only uninvite if no RSVP response has been submitted
-        if (!h.rsvpStatus) {
+        // Only skip if attending or maybe to protect headcounts
+        if (h.rsvpStatus !== 'yes' && h.rsvpStatus !== 'maybe') {
           next.delete(h.id);
         }
       }
@@ -421,7 +453,7 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
               <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredHouseholds.map((h) => {
                   const isInvited = invitedIds.has(h.id);
-                  const hasReplied = Boolean(h.rsvpStatus);
+                  const isLocked = h.rsvpStatus === 'yes' || h.rsvpStatus === 'maybe';
 
                   return (
                     <tr
@@ -432,10 +464,10 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
                     >
                       {/* Checkbox / Lock indicator */}
                       <td className="py-2.5 px-3 text-center">
-                        {hasReplied ? (
+                        {isLocked ? (
                           <div
                             className="inline-flex items-center justify-center w-5 h-5 rounded bg-emerald-100 text-emerald-700 cursor-not-allowed"
-                            title={`Locked: Household has already submitted RSVP ('${h.rsvpStatus}'). Cannot uninvite without resetting RSVP.`}
+                            title={`Locked: Household has active attendance ('${h.rsvpStatus}'). To uninvite, click "Reset RSVP" on the right.`}
                           >
                             <Lock className="w-3 h-3" />
                           </div>
@@ -470,22 +502,54 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
                         {h.expectedPartySize}
                       </td>
 
-                      {/* Reply Status Badge */}
+                      {/* Reply Status Badge & Reset Action */}
                       <td className="py-2.5 px-3 text-right">
                         {h.rsvpStatus === 'yes' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            <Check className="w-3 h-3" />
-                            <span>Attending ({h.rsvpPartySize || h.expectedPartySize})</span>
-                          </span>
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <Check className="w-3 h-3" />
+                              <span>Attending ({h.rsvpPartySize || h.expectedPartySize})</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleResetRsvp(h.id)}
+                              disabled={resettingId === h.id}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-colors disabled:opacity-50"
+                              title="Reset RSVP to uninvite or modify"
+                            >
+                              {resettingId === h.id ? (
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              ) : (
+                                <RotateCcw className="w-2.5 h-2.5" />
+                              )}
+                              <span>Reset</span>
+                            </button>
+                          </div>
+                        ) : h.rsvpStatus === 'maybe' ? (
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              <HelpCircle className="w-3 h-3" />
+                              <span>Maybe</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleResetRsvp(h.id)}
+                              disabled={resettingId === h.id}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-colors disabled:opacity-50"
+                              title="Reset RSVP to uninvite or modify"
+                            >
+                              {resettingId === h.id ? (
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              ) : (
+                                <RotateCcw className="w-2.5 h-2.5" />
+                              )}
+                              <span>Reset</span>
+                            </button>
+                          </div>
                         ) : h.rsvpStatus === 'no' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                             <X className="w-3 h-3" />
                             <span>Declined</span>
-                          </span>
-                        ) : h.rsvpStatus === 'maybe' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                            <HelpCircle className="w-3 h-3" />
-                            <span>Maybe</span>
                           </span>
                         ) : isInvited ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">

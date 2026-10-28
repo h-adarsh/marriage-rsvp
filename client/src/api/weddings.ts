@@ -89,3 +89,14 @@ export async function updateFunctionInvitationsApi(
   return handleResponse<{ success: boolean; addedCount: number; removedCount: number; invitedCount: number }>(res);
 }
 
+export async function resetFunctionRsvpApi(
+  functionId: string,
+  householdId: string
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/functions/${functionId}/rsvps/${householdId}/reset`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return handleResponse<{ success: boolean; message: string }>(res);
+}
+
