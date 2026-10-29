@@ -268,126 +268,129 @@ export async function recordCheckin(input: RecordCheckinInput): Promise<{
     finalIsWalkin = true;
   }
 
-  // Check if a check-in already exists for this (functionId, householdId)
-  if (householdId) {
-    const [existing] = await db
-      .select()
-      .from(checkins)
-      .where(and(eq(checkins.functionId, functionId), eq(checkins.householdId, householdId)))
-      .limit(1);
+  // Execute check-in inside a transaction with row lock to serialize concurrent check-in attempts
+  return await db.transaction(async (tx) => {
+    // Check if a check-in already exists for this (functionId, householdId)
+    if (householdId) {
+      const [existing] = await tx
+        .select()
+        .from(checkins)
+        .where(and(eq(checkins.functionId, functionId), eq(checkins.householdId, householdId)))
+        .for('update');
 
-    if (existing) {
-      // Update existing checkin
-      await db
-        .update(checkins)
-        .set({
-          guestName: finalGuestName,
-          actualPartySize,
-          notes: notes !== undefined ? notes : existing.notes,
-          checkedInAt: new Date(),
-        })
-        .where(eq(checkins.id, existing.id));
+      if (existing) {
+        // Update existing checkin
+        await tx
+          .update(checkins)
+          .set({
+            guestName: finalGuestName,
+            actualPartySize,
+            notes: notes !== undefined ? notes : existing.notes,
+            checkedInAt: new Date(),
+          })
+          .where(eq(checkins.id, existing.id));
 
-      // Record audit log
-      await db.insert(auditLog).values({
-        id: crypto.randomUUID(),
-        weddingId,
-        actorType: 'planner',
-        actorId: plannerId,
-        action: 'update_checkin',
-        entityType: 'checkin',
-        entityId: existing.id,
-        oldValues: {
-          actualPartySize: existing.actualPartySize,
-          guestName: existing.guestName,
-          notes: existing.notes,
-        },
-        newValues: {
-          actualPartySize,
-          guestName: finalGuestName,
-          notes: notes !== undefined ? notes : existing.notes,
-        },
-        ipAddress: ipAddress || null,
-      });
+        // Record audit log
+        await tx.insert(auditLog).values({
+          id: crypto.randomUUID(),
+          weddingId,
+          actorType: 'planner',
+          actorId: plannerId,
+          action: 'update_checkin',
+          entityType: 'checkin',
+          entityId: existing.id,
+          oldValues: {
+            actualPartySize: existing.actualPartySize,
+            guestName: existing.guestName,
+            notes: existing.notes,
+          },
+          newValues: {
+            actualPartySize,
+            guestName: finalGuestName,
+            notes: notes !== undefined ? notes : existing.notes,
+          },
+          ipAddress: ipAddress || null,
+        });
 
-      const [updated] = await db.select().from(checkins).where(eq(checkins.id, existing.id));
+        const [updated] = await tx.select().from(checkins).where(eq(checkins.id, existing.id));
 
-      return {
-        checkin: {
-          id: updated.id,
-          weddingId: updated.weddingId,
-          functionId: updated.functionId,
-          householdId: updated.householdId,
-          householdName: null,
-          primaryContactName: null,
-          phone: null,
-          guestName: updated.guestName,
-          actualPartySize: updated.actualPartySize,
-          isWalkin: Boolean(updated.isWalkin),
-          notes: updated.notes,
-          checkedInAt: new Date(updated.checkedInAt).toISOString(),
-          rsvpStatus: null,
-          rsvpPartySize: null,
-        },
-        isNew: false,
-      };
+        return {
+          checkin: {
+            id: updated.id,
+            weddingId: updated.weddingId,
+            functionId: updated.functionId,
+            householdId: updated.householdId,
+            householdName: null,
+            primaryContactName: null,
+            phone: null,
+            guestName: updated.guestName,
+            actualPartySize: updated.actualPartySize,
+            isWalkin: Boolean(updated.isWalkin),
+            notes: updated.notes,
+            checkedInAt: new Date(updated.checkedInAt).toISOString(),
+            rsvpStatus: null,
+            rsvpPartySize: null,
+          },
+          isNew: false,
+        };
+      }
     }
-  }
 
-  // Create new check-in record
-  const checkinId = crypto.randomUUID();
-  await db.insert(checkins).values({
-    id: checkinId,
-    weddingId,
-    functionId,
-    householdId: householdId || null,
-    guestName: finalGuestName,
-    actualPartySize,
-    isWalkin: finalIsWalkin,
-    notes: notes || null,
-    checkedInAt: new Date(),
-  });
-
-  // Record audit log
-  await db.insert(auditLog).values({
-    id: crypto.randomUUID(),
-    weddingId,
-    actorType: 'planner',
-    actorId: plannerId,
-    action: 'venue_checkin',
-    entityType: 'checkin',
-    entityId: checkinId,
-    newValues: {
+    // Create new check-in record
+    const checkinId = crypto.randomUUID();
+    await tx.insert(checkins).values({
+      id: checkinId,
+      weddingId,
+      functionId,
       householdId: householdId || null,
       guestName: finalGuestName,
       actualPartySize,
       isWalkin: finalIsWalkin,
       notes: notes || null,
-    },
-    ipAddress: ipAddress || null,
+      checkedInAt: new Date(),
+    });
+
+    // Record audit log
+    await tx.insert(auditLog).values({
+      id: crypto.randomUUID(),
+      weddingId,
+      actorType: 'planner',
+      actorId: plannerId,
+      action: 'venue_checkin',
+      entityType: 'checkin',
+      entityId: checkinId,
+      newValues: {
+        householdId: householdId || null,
+        guestName: finalGuestName,
+        actualPartySize,
+        isWalkin: finalIsWalkin,
+        notes: notes || null,
+      },
+      ipAddress: ipAddress || null,
+    });
+
+    const [created] = await tx.select().from(checkins).where(eq(checkins.id, checkinId));
+
+    return {
+      checkin: {
+        id: created.id,
+        weddingId: created.weddingId,
+        functionId: created.functionId,
+        householdId: created.householdId,
+        householdName: null,
+        primaryContactName: null,
+        phone: null,
+        guestName: created.guestName,
+        actualPartySize: created.actualPartySize,
+        isWalkin: Boolean(created.isWalkin),
+        notes: created.notes,
+        checkedInAt: new Date(created.checkedInAt).toISOString(),
+        rsvpStatus: null,
+        rsvpPartySize: null,
+      },
+      isNew: true,
+    };
   });
-
-  const [created] = await db.select().from(checkins).where(eq(checkins.id, checkinId));
-
-  return {
-    checkin: {
-      id: created.id,
-      weddingId: created.weddingId,
-      functionId: created.functionId,
-      householdId: created.householdId,
-      householdName: null,
-      primaryContactName: null,
-      phone: null,
-      guestName: created.guestName,
-      actualPartySize: created.actualPartySize,
-      isWalkin: Boolean(created.isWalkin),
-      notes: created.notes,
-      checkedInAt: new Date(created.checkedInAt).toISOString(),
-      rsvpStatus: null,
-      rsvpPartySize: null,
-    },
-    isNew: true,
-  };
 }
 
 /**
@@ -511,3 +514,4 @@ export async function updateCheckin(params: {
     rsvpPartySize: null,
   };
 }
+

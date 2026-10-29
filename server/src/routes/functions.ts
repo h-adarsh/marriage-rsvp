@@ -171,7 +171,7 @@ functionsRouter.get('/:id/invitations', async (req: Request, res: Response): Pro
     const rsvpMap = new Map(rsvpRows.map((r) => [r.householdId, r]));
 
     const rawStaleDays = req.query.staleDays !== undefined ? Number(req.query.staleDays) : 14;
-    const staleDays = isNaN(rawStaleDays) || rawStaleDays < 1 ? 14 : Math.round(rawStaleDays);
+    const staleDays = isNaN(rawStaleDays) || rawStaleDays < 1 ? 14 : Math.min(365, Math.round(rawStaleDays));
     const nowMs = Date.now();
     const staleCutoffMs = nowMs - staleDays * 24 * 60 * 60 * 1000;
 
@@ -474,7 +474,11 @@ functionsRouter.get('/:id/headcount', async (req: Request, res: Response): Promi
     }
 
     const maybePct = req.query.maybePct !== undefined ? Number(req.query.maybePct) : undefined;
-    const staleDays = req.query.staleDays !== undefined ? Number(req.query.staleDays) : undefined;
+    const rawStaleDays = req.query.staleDays !== undefined ? Number(req.query.staleDays) : undefined;
+    const staleDays =
+      rawStaleDays !== undefined && !isNaN(rawStaleDays) && rawStaleDays >= 1
+        ? Math.min(365, Math.round(rawStaleDays))
+        : undefined;
 
     const result = await getFunctionHeadcount(functionId, { maybePct, staleDays });
 

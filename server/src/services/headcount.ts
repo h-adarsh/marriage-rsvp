@@ -68,7 +68,7 @@ export function calculateHeadcountFromRows(
   const rawPct = options?.maybePct !== undefined ? Number(options.maybePct) : 50;
   const maybePct = isNaN(rawPct) ? 50 : Math.max(0, Math.min(100, Math.round(rawPct)));
   const rawStaleDays = options?.staleDays !== undefined ? Number(options.staleDays) : 14;
-  const staleDays = isNaN(rawStaleDays) || rawStaleDays < 1 ? 14 : Math.round(rawStaleDays);
+  const staleDays = isNaN(rawStaleDays) || rawStaleDays < 1 ? 14 : Math.min(365, Math.round(rawStaleDays));
 
   const nowMs = Date.now();
   const staleThresholdMs = nowMs - staleDays * 24 * 60 * 60 * 1000;

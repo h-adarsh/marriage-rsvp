@@ -388,4 +388,85 @@ describe('Task T4.1 Integration Tests: Venue Check-In Backend API', () => {
       expect(afterRes.body.summary.walkinCount).toBe(0);
     });
   });
+
+  describe('Concurrency & Data Privacy Verifications', () => {
+    it('concurrent double check-in: Promise.all from two devices results in exactly 1 check-in row without duplicates', async () => {
+      // Household A2 (Mehta Family) is not checked in yet.
+      // Two phones tap check-in at the exact same moment with party sizes 3 and 4.
+      const [res1, res2] = await Promise.all([
+        request(app)
+          .post(`/api/functions/${functionAId}/checkins`)
+          .set('Cookie', cookiePlannerA)
+          .send({ householdId: householdA2Id, actualPartySize: 3, notes: 'Device 1' }),
+        request(app)
+          .post(`/api/functions/${functionAId}/checkins`)
+          .set('Cookie', cookiePlannerA)
+          .send({ householdId: householdA2Id, actualPartySize: 4, notes: 'Device 2' }),
+      ]);
+
+      // Both requests resolve with 2xx (one creates, the other updates serialized by row lock & unique index)
+      expect([200, 201]).toContain(res1.status);
+      expect([200, 201]).toContain(res2.status);
+
+      // Verify the database has EXACTLY one check-in row for household A2
+      const rows = await db
+        .select()
+        .from(checkins)
+        .where(and(eq(checkins.functionId, functionAId), eq(checkins.householdId, householdA2Id)));
+
+      expect(rows).toHaveLength(1);
+      expect([3, 4]).toContain(rows[0].actualPartySize);
+    });
+
+    it('personal data privacy: walk-in guest records are permanently cascade-deleted when the wedding is deleted', async () => {
+      // 1. Create a temporary wedding, function, and walk-in check-in
+      const tempWed = await request(app)
+        .post('/api/weddings')
+        .set('Cookie', cookiePlannerA)
+        .send({
+          title: 'Temporary Wedding',
+          coupleNames: 'Temp & Partner',
+          startDate: '2026-12-25',
+          endDate: '2026-12-26',
+        });
+      const tempWedId = tempWed.body.id;
+
+      const tempFn = await request(app)
+        .post(`/api/weddings/${tempWedId}/functions`)
+        .set('Cookie', cookiePlannerA)
+        .send({
+          name: 'Temp Function',
+          dateTime: '2026-12-25T18:00:00Z',
+          venue: 'Temp Venue',
+        });
+      const tempFnId = tempFn.body.id;
+
+      // Log a walk-in guest with personal name
+      const walkinRes = await request(app)
+        .post(`/api/functions/${tempFnId}/checkins`)
+        .set('Cookie', cookiePlannerA)
+        .send({
+          guestName: 'Private Walkin Guest',
+          actualPartySize: 1,
+          isWalkin: true,
+          notes: 'Sensitive personal data',
+        });
+      expect(walkinRes.status).toBe(201);
+      const walkinCheckinId = walkinRes.body.checkin.id;
+
+      // 2. Delete the wedding
+      const delRes = await request(app)
+        .delete(`/api/weddings/${tempWedId}`)
+        .set('Cookie', cookiePlannerA);
+      expect(delRes.status).toBe(200);
+
+      // 3. PROOF: Query checkins table directly to verify walkin guest row was cascade-deleted
+      const remaining = await db
+        .select()
+        .from(checkins)
+        .where(eq(checkins.id, walkinCheckinId));
+
+      expect(remaining).toHaveLength(0);
+    });
+  });
 });

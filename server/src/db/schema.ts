@@ -159,7 +159,7 @@ export const checkins = mysqlTable('checkins', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
 }, (table) => ({
-  funcHhIdx: index('idx_checkins_func_hh').on(table.functionId, table.householdId),
+  funcHhUq: uniqueIndex('uq_checkins_func_hh').on(table.functionId, table.householdId),
   funcIdx: index('idx_checkins_func').on(table.functionId),
   weddingIdx: index('idx_checkins_wedding').on(table.weddingId),
 }));
