@@ -30,3 +30,9 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Documentation files: ignore all markdown files except README.md
+*.md
+**/*.md
+!README.md
+!**/README.md
