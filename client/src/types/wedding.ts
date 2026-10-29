@@ -3,6 +3,7 @@ export interface Wedding {
   plannerId: string;
   title: string;
   coupleNames: string;
+  timezone: string;
   startDate: string;
   endDate: string;
   createdAt: string;
@@ -22,6 +23,7 @@ export interface WeddingFunction {
 export interface CreateWeddingInput {
   title: string;
   coupleNames: string;
+  timezone?: string;
   startDate: string;
   endDate: string;
 }

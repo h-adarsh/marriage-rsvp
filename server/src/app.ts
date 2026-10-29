@@ -16,6 +16,9 @@ dotenv.config();
 
 export const app = express();
 
+// Disable x-powered-by header to prevent fingerprinting
+app.disable('x-powered-by');
+
 // Configure trust proxy setting dynamically from environment
 app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 
@@ -40,7 +43,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self';"
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
   );
   next();
 });

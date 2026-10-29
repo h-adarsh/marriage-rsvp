@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { householdFunctions, households, rsvps, functions, weddings } from '../db/schema';
 import { calculateHeadcountFromRows, HeadcountOptions } from './headcount';
+import { formatDateTimeInZone } from '../utils/date';
 
 /**
  * CWE-1236 Defense: Neutralize CSV formula injection.
@@ -38,6 +39,7 @@ export function sanitizeCsvField(val: string | number | null | undefined): strin
 export interface CatererExportData {
   weddingTitle: string;
   coupleNames: string;
+  timezone?: string;
   functionName: string;
   dateTime: Date | string;
   venue: string;
@@ -78,10 +80,10 @@ export function buildCatererCsv(data: CatererExportData): string {
   lines.push(`Wedding Title,${sanitizeCsvField(data.weddingTitle)}`);
   lines.push(`Couple Names,${sanitizeCsvField(data.coupleNames)}`);
   lines.push(`Function Name,${sanitizeCsvField(data.functionName)}`);
-  const formattedDate = new Date(data.dateTime).toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+  const formattedDate = formatDateTimeInZone(data.dateTime, data.timezone || 'Asia/Kolkata');
   lines.push(`Event Date & Time,${sanitizeCsvField(formattedDate)}`);
   lines.push(`Venue,${sanitizeCsvField(data.venue)}`);
-  const exportTimestamp = data.exportedAt.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+  const exportTimestamp = formatDateTimeInZone(data.exportedAt, data.timezone || 'Asia/Kolkata');
   lines.push(`Export Generated At,${sanitizeCsvField(exportTimestamp)}`);
   lines.push('');
 
@@ -179,6 +181,7 @@ export async function generateCatererCsvData(
       weddingId: weddings.id,
       weddingTitle: weddings.title,
       coupleNames: weddings.coupleNames,
+      timezone: weddings.timezone,
     })
     .from(functions)
     .innerJoin(weddings, eq(functions.weddingId, weddings.id))
@@ -247,6 +250,7 @@ export async function generateCatererCsvData(
   const exportData: CatererExportData = {
     weddingTitle: fn.weddingTitle,
     coupleNames: fn.coupleNames,
+    timezone: fn.timezone || 'Asia/Kolkata',
     functionName: fn.functionName,
     dateTime: fn.dateTime,
     venue: fn.venue,

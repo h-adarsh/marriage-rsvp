@@ -468,5 +468,51 @@ describe('Task T4.1 Integration Tests: Venue Check-In Backend API', () => {
 
       expect(remaining).toHaveLength(0);
     });
+
+    it('idempotently handles repeated walk-in check-in submissions using clientGeneratedId (no duplicates)', async () => {
+      const clientGeneratedId = crypto.randomUUID();
+
+      // First submission (e.g. initial network request)
+      const firstRes = await request(app)
+        .post(`/api/functions/${functionAId}/checkins`)
+        .set('Cookie', cookiePlannerA)
+        .send({
+          clientGeneratedId,
+          guestName: 'Idempotent Walk-in Group',
+          actualPartySize: 3,
+          isWalkin: true,
+          notes: 'Volunteer tapped save',
+        });
+
+      expect(firstRes.status).toBe(201);
+      expect(firstRes.body.checkin.id).toBe(clientGeneratedId);
+      expect(firstRes.body.checkin.actualPartySize).toBe(3);
+      expect(firstRes.body.isNew).toBe(true);
+
+      // Second submission (e.g. network retry with the exact same clientGeneratedId)
+      const secondRes = await request(app)
+        .post(`/api/functions/${functionAId}/checkins`)
+        .set('Cookie', cookiePlannerA)
+        .send({
+          clientGeneratedId,
+          guestName: 'Idempotent Walk-in Group',
+          actualPartySize: 3,
+          isWalkin: true,
+          notes: 'Volunteer tapped save again after timeout',
+        });
+
+      expect(secondRes.status).toBe(200);
+      expect(secondRes.body.checkin.id).toBe(clientGeneratedId);
+      expect(secondRes.body.isNew).toBe(false);
+
+      // Verify that checkins table has exactly 1 row with this ID
+      const rows = await db
+        .select()
+        .from(checkins)
+        .where(eq(checkins.id, clientGeneratedId));
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].actualPartySize).toBe(3);
+    });
   });
 });

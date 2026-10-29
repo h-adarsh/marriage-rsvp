@@ -199,6 +199,7 @@ export async function getFunctionCheckinOverview(functionId: string): Promise<Fu
 export interface RecordCheckinInput {
   weddingId: string;
   functionId: string;
+  clientGeneratedId?: string;
   householdId?: string | null;
   guestName?: string;
   actualPartySize: number;
@@ -218,6 +219,7 @@ export async function recordCheckin(input: RecordCheckinInput): Promise<{
   const {
     weddingId,
     functionId,
+    clientGeneratedId,
     householdId,
     actualPartySize,
     notes,
@@ -270,6 +272,37 @@ export async function recordCheckin(input: RecordCheckinInput): Promise<{
 
   // Execute check-in inside a transaction with row lock to serialize concurrent check-in attempts
   return await db.transaction(async (tx) => {
+    // 0. If client provided a deterministic ID (idempotency key for walk-ins/retries), check if it exists
+    if (clientGeneratedId) {
+      const [existingById] = await tx
+        .select()
+        .from(checkins)
+        .where(eq(checkins.id, clientGeneratedId))
+        .for('update');
+
+      if (existingById) {
+        return {
+          checkin: {
+            id: existingById.id,
+            weddingId: existingById.weddingId,
+            functionId: existingById.functionId,
+            householdId: existingById.householdId,
+            householdName: null,
+            primaryContactName: null,
+            phone: null,
+            guestName: existingById.guestName,
+            actualPartySize: existingById.actualPartySize,
+            isWalkin: Boolean(existingById.isWalkin),
+            notes: existingById.notes,
+            checkedInAt: new Date(existingById.checkedInAt).toISOString(),
+            rsvpStatus: null,
+            rsvpPartySize: null,
+          },
+          isNew: false,
+        };
+      }
+    }
+
     // Check if a check-in already exists for this (functionId, householdId)
     if (householdId) {
       const [existing] = await tx
@@ -337,7 +370,7 @@ export async function recordCheckin(input: RecordCheckinInput): Promise<{
     }
 
     // Create new check-in record
-    const checkinId = crypto.randomUUID();
+    const checkinId = clientGeneratedId || crypto.randomUUID();
     await tx.insert(checkins).values({
       id: checkinId,
       weddingId,

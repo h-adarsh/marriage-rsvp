@@ -1,9 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
+import { isValidTimeZone } from '../../src/utils/date';
 
 const weddingSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
   coupleNames: z.string().min(1, 'Couple names are required').max(200),
+  timezone: z
+    .string()
+    .optional()
+    .refine((val) => !val || isValidTimeZone(val), {
+      message: 'Invalid IANA timezone identifier (e.g. Asia/Kolkata)',
+    }),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format'),
 }).refine((data) => data.endDate >= data.startDate, {
@@ -13,22 +20,35 @@ const weddingSchema = z.object({
 
 const functionSchema = z.object({
   name: z.string().min(1, 'Function name is required').max(100),
-  dateTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+  dateTime: z.string().refine((val) => !isNaN(Date.parse(val)) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(val), {
     message: 'Valid date and time is required',
   }),
   venue: z.string().min(1, 'Venue is required').max(255),
 });
 
 describe('Wedding and Function Domain Rules', () => {
-  it('accepts valid wedding input', () => {
+  it('accepts valid wedding input with default or custom timezone', () => {
     const valid = {
       title: "Aditi & Rahul's Wedding",
       coupleNames: 'Aditi Sharma & Rahul Verma',
+      timezone: 'Asia/Kolkata',
       startDate: '2026-11-10',
       endDate: '2026-11-12',
     };
     const result = weddingSchema.safeParse(valid);
     expect(result.success).toBe(true);
+  });
+
+  it('rejects wedding input with invalid timezone string', () => {
+    const invalid = {
+      title: "Aditi & Rahul's Wedding",
+      coupleNames: 'Aditi Sharma & Rahul Verma',
+      timezone: 'Fake/Timezone_Not_Real',
+      startDate: '2026-11-10',
+      endDate: '2026-11-12',
+    };
+    const result = weddingSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
   });
 
   it('rejects wedding with endDate prior to startDate', () => {

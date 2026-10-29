@@ -159,19 +159,23 @@ export const DashboardPage: React.FC = () => {
 
   const formatEventDateTime = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
+    const timeZone = activeWedding?.timezone || 'Asia/Kolkata';
+    return date.toLocaleDateString('en-IN', {
+      timeZone,
       weekday: 'short',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
+      hour12: true,
     });
   };
 
   const formatDateRange = (start: string, end: string) => {
-    const s = new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const e = new Date(end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeZone = activeWedding?.timezone || 'Asia/Kolkata';
+    const s = new Date(start).toLocaleDateString('en-IN', { timeZone, month: 'short', day: 'numeric' });
+    const e = new Date(end).toLocaleDateString('en-IN', { timeZone, month: 'short', day: 'numeric', year: 'numeric' });
     return `${s} - ${e}`;
   };
 
@@ -364,6 +368,7 @@ export const DashboardPage: React.FC = () => {
             {activeTab === 'checkin' && (
               <VenueCheckIn
                 functions={functions}
+                weddingTimezone={activeWedding?.timezone || 'Asia/Kolkata'}
                 onNavigateToFunctions={() => setActiveTab('functions')}
               />
             )}

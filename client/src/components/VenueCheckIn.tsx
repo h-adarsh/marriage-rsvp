@@ -34,6 +34,7 @@ import {
 interface VenueCheckInProps {
   functions: WeddingFunction[];
   initialFunctionId?: string;
+  weddingTimezone?: string;
   onNavigateToFunctions?: () => void;
 }
 
@@ -42,6 +43,7 @@ type CheckinFilter = 'all' | 'pending' | 'arrived' | 'walkin';
 export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
   functions,
   initialFunctionId,
+  weddingTimezone,
   onNavigateToFunctions,
 }) => {
   const [selectedFunctionId, setSelectedFunctionId] = useState<string>(
@@ -73,6 +75,7 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
 
   // Walk-in Modal State
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState<boolean>(false);
+  const [walkinClientId, setWalkinClientId] = useState<string>('');
   const [walkinName, setWalkinName] = useState<string>('');
   const [walkinPartySize, setWalkinPartySize] = useState<number>(1);
   const [walkinNotes, setWalkinNotes] = useState<string>('');
@@ -317,6 +320,7 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
 
   // Open Walk-in Modal
   const openWalkinModal = () => {
+    setWalkinClientId(crypto.randomUUID());
     setWalkinName('');
     setWalkinPartySize(1);
     setWalkinNotes('');
@@ -336,6 +340,7 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
       setIsLoading(true);
       setErrorMessage(null);
       await recordCheckinApi(selectedFunctionId, {
+        clientGeneratedId: walkinClientId || crypto.randomUUID(),
         guestName: trimmed,
         actualPartySize: walkinPartySize,
         isWalkin: true,
@@ -377,7 +382,8 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
     if (!isoString) return '';
     try {
       const d = new Date(isoString);
-      return d.toLocaleTimeString(undefined, {
+      return d.toLocaleTimeString('en-IN', {
+        timeZone: weddingTimezone || 'Asia/Kolkata',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,

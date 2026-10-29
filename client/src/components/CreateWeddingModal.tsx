@@ -2,13 +2,26 @@ import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { createWeddingApi } from '../api/weddings';
 import { Wedding } from '../types/wedding';
-import { CalendarHeart, Users, Calendar, AlertCircle, Loader2 } from 'lucide-react';
+import { CalendarHeart, Users, Calendar, AlertCircle, Loader2, Globe } from 'lucide-react';
 
 interface CreateWeddingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onWeddingCreated: (wedding: Wedding) => void;
 }
+
+const TIMEZONE_OPTIONS = [
+  { value: 'Asia/Kolkata', label: 'India Standard Time (IST — Asia/Kolkata)' },
+  { value: 'Asia/Dubai', label: 'Gulf Standard Time (GST — Asia/Dubai)' },
+  { value: 'Asia/Singapore', label: 'Singapore Time (SGT — Asia/Singapore)' },
+  { value: 'Asia/Bangkok', label: 'Indochina Time (ICT — Asia/Bangkok)' },
+  { value: 'Europe/London', label: 'UK / London (GMT/BST — Europe/London)' },
+  { value: 'Europe/Paris', label: 'Central European Time (CET — Europe/Paris)' },
+  { value: 'America/New_York', label: 'US Eastern (EST/EDT — America/New_York)' },
+  { value: 'America/Chicago', label: 'US Central (CST/CDT — America/Chicago)' },
+  { value: 'America/Los_Angeles', label: 'US Pacific (PST/PDT — America/Los_Angeles)' },
+  { value: 'Australia/Sydney', label: 'Australia Eastern (AEST — Australia/Sydney)' },
+];
 
 export const CreateWeddingModal: React.FC<CreateWeddingModalProps> = ({
   isOpen,
@@ -17,6 +30,7 @@ export const CreateWeddingModal: React.FC<CreateWeddingModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [coupleNames, setCoupleNames] = useState('');
+  const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -41,6 +55,7 @@ export const CreateWeddingModal: React.FC<CreateWeddingModalProps> = ({
       const created = await createWeddingApi({
         title: title.trim(),
         coupleNames: coupleNames.trim(),
+        timezone,
         startDate,
         endDate,
       });
@@ -48,6 +63,7 @@ export const CreateWeddingModal: React.FC<CreateWeddingModalProps> = ({
       // Reset form state
       setTitle('');
       setCoupleNames('');
+      setTimezone('Asia/Kolkata');
       setStartDate('');
       setEndDate('');
       onWeddingCreated(created);
@@ -111,6 +127,31 @@ export const CreateWeddingModal: React.FC<CreateWeddingModalProps> = ({
               className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+            Wedding Timezone
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Globe className="w-4 h-4" />
+            </div>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-900 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+            >
+              {TIMEZONE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            All guest invitation times and function schedules are displayed in this timezone.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

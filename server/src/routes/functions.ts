@@ -23,7 +23,7 @@ functionsRouter.use(requireAuth);
 
 const functionSchema = z.object({
   name: z.string().min(1, 'Function name is required').max(100),
-  dateTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+  dateTime: z.string().refine((val) => !isNaN(Date.parse(val)) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(val), {
     message: 'Valid date and time is required',
   }),
   venue: z.string().min(1, 'Venue is required').max(255),
@@ -524,6 +524,7 @@ functionsRouter.get('/:id/export-csv', async (req: Request, res: Response): Prom
 });
 
 const recordCheckinSchema = z.object({
+  clientGeneratedId: z.string().uuid().optional(),
   householdId: z.string().uuid().optional().nullable(),
   guestName: z.string().max(150).optional(),
   actualPartySize: z.number().int().min(1, 'Actual party size must be at least 1').max(50, 'Party size exceeds limit'),
@@ -592,6 +593,7 @@ functionsRouter.post('/:id/checkins', async (req: Request, res: Response): Promi
     const result = await recordCheckin({
       weddingId: owned.wedding.id,
       functionId,
+      clientGeneratedId: parseResult.data.clientGeneratedId,
       householdId: parseResult.data.householdId || null,
       guestName: parseResult.data.guestName,
       actualPartySize: parseResult.data.actualPartySize,

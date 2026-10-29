@@ -51,6 +51,7 @@ export interface FunctionCheckinOverview {
 }
 
 export interface RecordCheckinPayload {
+  clientGeneratedId?: string;
   householdId?: string | null;
   guestName?: string;
   actualPartySize: number;

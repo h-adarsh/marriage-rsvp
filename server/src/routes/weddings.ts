@@ -8,7 +8,7 @@ import { requireAuth } from '../middleware/auth';
 import { getOwnedWedding } from '../middleware/tenant';
 import { householdSchema } from './households';
 import { generateInviteToken } from '../utils/auth';
-import { parseWeddingDateTime } from '../utils/date';
+import { parseWeddingDateTime, isValidTimeZone } from '../utils/date';
 import multer from 'multer';
 import { processHouseholdCsv, checkDuplicates, normalizePhone } from '../services/csv';
 
@@ -25,6 +25,12 @@ weddingsRouter.use(requireAuth);
 const weddingSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
   coupleNames: z.string().min(1, 'Couple names are required').max(200),
+  timezone: z
+    .string()
+    .optional()
+    .refine((val) => !val || isValidTimeZone(val), {
+      message: 'Invalid IANA timezone identifier (e.g. Asia/Kolkata)',
+    }),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format'),
 }).refine((data) => data.endDate >= data.startDate, {
@@ -34,7 +40,7 @@ const weddingSchema = z.object({
 
 const functionSchema = z.object({
   name: z.string().min(1, 'Function name is required').max(100),
-  dateTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+  dateTime: z.string().refine((val) => !isNaN(Date.parse(val)) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(val), {
     message: 'Valid date and time is required',
   }),
   venue: z.string().min(1, 'Venue is required').max(255),
@@ -68,7 +74,7 @@ weddingsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const { title, coupleNames, startDate, endDate } = parseResult.data;
+  const { title, coupleNames, startDate, endDate, timezone } = parseResult.data;
   const weddingId = crypto.randomUUID();
 
   try {
@@ -77,6 +83,7 @@ weddingsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       plannerId: req.user!.id,
       title: title.trim(),
       coupleNames: coupleNames.trim(),
+      timezone: timezone || 'Asia/Kolkata',
       startDate: new Date(startDate),
       endDate: new Date(endDate),
     });
@@ -128,16 +135,21 @@ weddingsRouter.put('/:id', async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const { title, coupleNames, startDate, endDate } = parseResult.data;
+    const { title, coupleNames, startDate, endDate, timezone } = parseResult.data;
+
+    const updateValues: Record<string, any> = {
+      title: title.trim(),
+      coupleNames: coupleNames.trim(),
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+    };
+    if (timezone) {
+      updateValues.timezone = timezone;
+    }
 
     await db
       .update(weddings)
-      .set({
-        title: title.trim(),
-        coupleNames: coupleNames.trim(),
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-      })
+      .set(updateValues)
       .where(eq(weddings.id, weddingId));
 
     const updated = await getOwnedWedding(weddingId, req.user!.id);
