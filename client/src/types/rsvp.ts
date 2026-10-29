@@ -19,6 +19,7 @@ export interface PublicRsvpLookupResponse {
   wedding: {
     title: string;
     coupleNames: string;
+    timezone: string;
   };
   functions: InvitedFunctionRsvp[];
 }

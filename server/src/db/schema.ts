@@ -42,6 +42,7 @@ export const weddings = mysqlTable('weddings', {
     .references(() => planners.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 200 }).notNull(),
   coupleNames: varchar('couple_names', { length: 200 }).notNull(),
+  timezone: varchar('timezone', { length: 50 }).notNull().default('Asia/Kolkata'),
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -150,7 +151,7 @@ export const checkins = mysqlTable('checkins', {
     .notNull()
     .references(() => functions.id, { onDelete: 'cascade' }),
   householdId: varchar('household_id', { length: 36 })
-    .references(() => households.id, { onDelete: 'set null' }),
+    .references(() => households.id, { onDelete: 'cascade' }),
   guestName: varchar('guest_name', { length: 150 }).notNull(),
   actualPartySize: int('actual_party_size').notNull().default(1),
   isWalkin: boolean('is_walkin').notNull().default(false),

@@ -65,10 +65,15 @@ export const HouseholdList: React.FC<HouseholdListProps> = ({
     const url = `${origin}/rsvp/${household.inviteToken}`;
     const message = `Namaste ${household.name}! You are cordially invited to our wedding celebrations. Please confirm your attendance and meal preferences using your private RSVP link:\n\n${url}`;
 
-    const cleanPhone = household.phone ? household.phone.replace(/[^0-9]/g, '') : '';
-    const whatsappUrl = cleanPhone
-      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    let cleanDigits = household.phone ? household.phone.replace(/\D/g, '') : '';
+    // If standard 10-digit Indian mobile number without country code, prepend 91
+    if (cleanDigits.length === 10) {
+      cleanDigits = `91${cleanDigits}`;
+    }
+
+    const whatsappUrl = cleanDigits
+      ? `https://wa.me/${cleanDigits}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
 
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };

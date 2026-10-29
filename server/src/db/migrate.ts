@@ -14,3 +14,4 @@ runMigrations().catch((err) => {
   console.error('[migrate] Migration error:', err);
   process.exit(1);
 });
+

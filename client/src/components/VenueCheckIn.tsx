@@ -53,6 +53,7 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const [failedCheckins, setFailedCheckins] = useState<Record<string, string>>({});
 
   // Search & Filtering
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -238,11 +239,20 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
         notes: null,
       });
 
+      // Clear any prior failure state for this household
+      setFailedCheckins((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+
       setSuccessBanner(`Checked in ${item.name} (${defaultSize} guests)`);
       await loadOverview(selectedFunctionId);
     } catch (err: any) {
       console.error('Check-in error:', err);
-      setErrorMessage(err.message || 'Failed to check in guest.');
+      const msg = err.message || 'Network connection issue. Tap to retry.';
+      setErrorMessage(msg);
+      setFailedCheckins((prev) => ({ ...prev, [item.id]: msg }));
     } finally {
       setActionLoadingId(null);
     }
@@ -726,6 +736,14 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
                           <span>Checked In ({item.actualPartySize} arrived)</span>
                         </span>
                       )}
+
+                      {/* Offline/Failed Arrival Warning Badge */}
+                      {!isCheckedIn && failedCheckins[item.id] && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                          <AlertCircle className="w-3 h-3 text-amber-600" />
+                          <span>Failed to save • Tap to retry</span>
+                        </span>
+                      )}
                     </div>
 
                     {/* Contact & Meta Subtext */}
@@ -770,14 +788,24 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
                         <button
                           onClick={() => handleDirectCheckin(item)}
                           disabled={isActing}
-                          className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all min-h-[48px] disabled:opacity-50"
+                          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-sm transition-all min-h-[48px] disabled:opacity-50 ${
+                            failedCheckins[item.id]
+                              ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          }`}
                         >
                           {isActing ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : failedCheckins[item.id] ? (
+                            <RotateCcw className="w-4 h-4" />
                           ) : (
                             <CheckCircle2 className="w-4 h-4" />
                           )}
-                          <span>Check In ({directPartySize})</span>
+                          <span>
+                            {failedCheckins[item.id]
+                              ? `Retry Check In (${directPartySize})`
+                              : `Check In (${directPartySize})`}
+                          </span>
                         </button>
 
                         <button

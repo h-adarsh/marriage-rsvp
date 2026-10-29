@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Calendar,
@@ -39,6 +39,7 @@ export const GuestRsvpPage: React.FC = () => {
   const [formResponses, setFormResponses] = useState<Record<string, FunctionFormState>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const submitErrorRef = useRef<HTMLDivElement>(null);
   const [isSubmittedSuccess, setIsSubmittedSuccess] = useState(false);
   const [hasExistingReplies, setHasExistingReplies] = useState(false);
 
@@ -238,7 +239,9 @@ export const GuestRsvpPage: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit your RSVP. Please try again.';
       setSubmitError(msg);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => {
+        submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
     } finally {
       setIsSubmitting(false);
     }
@@ -318,12 +321,15 @@ export const GuestRsvpPage: React.FC = () => {
               {functions.map((fn) => {
                 const resp = formResponses[fn.id];
                 const dateObj = new Date(fn.dateTime);
-                const formattedDate = dateObj.toLocaleDateString(undefined, {
+                const timeZone = invitationData?.wedding.timezone || 'Asia/Kolkata';
+                const formattedDate = dateObj.toLocaleDateString('en-IN', {
+                  timeZone,
                   weekday: 'short',
                   month: 'short',
                   day: 'numeric',
                 });
-                const formattedTime = dateObj.toLocaleTimeString(undefined, {
+                const formattedTime = dateObj.toLocaleTimeString('en-IN', {
+                  timeZone,
                   hour: 'numeric',
                   minute: '2-digit',
                   hour12: true,
@@ -482,13 +488,16 @@ export const GuestRsvpPage: React.FC = () => {
               };
 
               const dateObj = new Date(fn.dateTime);
-              const formattedDate = dateObj.toLocaleDateString(undefined, {
+              const timeZone = invitationData?.wedding.timezone || 'Asia/Kolkata';
+              const formattedDate = dateObj.toLocaleDateString('en-IN', {
+                timeZone,
                 weekday: 'long',
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric',
               });
-              const formattedTime = dateObj.toLocaleTimeString(undefined, {
+              const formattedTime = dateObj.toLocaleTimeString('en-IN', {
+                timeZone,
                 hour: 'numeric',
                 minute: '2-digit',
                 hour12: true,
@@ -780,7 +789,22 @@ export const GuestRsvpPage: React.FC = () => {
           </div>
 
           {/* Submit Action Bar */}
-          <div className="pt-2">
+          <div className="pt-2 space-y-3">
+            {submitError && (
+              <div
+                ref={submitErrorRef}
+                role="alert"
+                aria-live="assertive"
+                className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-xs sm:text-sm flex items-start gap-3 shadow-md animate-in fade-in"
+              >
+                <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Unable to submit RSVP:</p>
+                  <p className="mt-0.5">{submitError}</p>
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}

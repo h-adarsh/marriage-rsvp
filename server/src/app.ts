@@ -68,6 +68,11 @@ app.use('/api/functions', functionsRouter);
 app.use('/api/households', householdsRouter);
 app.use('/api/rsvp', rsvpRouter);
 
+// Return JSON 404 for any unmatched /api routes
+app.all('/api/*', (_req: Request, res: Response) => {
+  res.status(404).json({ error: 'API route not found' });
+});
+
 // In production, serve the compiled Vite SPA static files and fallback to index.html for client routing
 if (process.env.NODE_ENV === 'production') {
   const clientDistPath = path.resolve(__dirname, '../../client/dist');

@@ -38,18 +38,19 @@ async function seed() {
     plannerId,
     title: "Ananya & Kabir's Wedding",
     coupleNames: 'Ananya Sharma & Kabir Malhotra',
+    timezone: 'Asia/Kolkata',
     startDate: new Date('2026-12-10'),
     endDate: new Date('2026-12-12'),
   });
   console.log("[seed] Created wedding: Ananya & Kabir's Wedding");
 
-  // 3. Create Wedding Functions
+  // 3. Create Wedding Functions (all times configured in wedding local venue timezone Asia/Kolkata +05:30)
   const fnsData = [
-    { name: 'Mehendi & High Tea', dateTime: new Date('2026-12-10T15:00:00Z'), venue: 'Poolside Terrace' },
-    { name: 'Sangeet & Cocktail', dateTime: new Date('2026-12-10T19:30:00Z'), venue: 'The Grand Ballroom' },
-    { name: 'Haldi Ceremony', dateTime: new Date('2026-12-11T10:00:00Z'), venue: 'Courtyard Lawns' },
-    { name: 'Wedding Ceremony (Pheras)', dateTime: new Date('2026-12-11T18:00:00Z'), venue: 'Mandap by the Lake' },
-    { name: 'Grand Reception Dinner', dateTime: new Date('2026-12-12T19:30:00Z'), venue: 'Royal Palace Banquet' },
+    { name: 'Mehendi & High Tea', dateTime: new Date('2026-12-10T15:00:00+05:30'), venue: 'Poolside Terrace' },
+    { name: 'Sangeet & Cocktail', dateTime: new Date('2026-12-10T19:30:00+05:30'), venue: 'The Grand Ballroom' },
+    { name: 'Haldi Ceremony', dateTime: new Date('2026-12-11T10:00:00+05:30'), venue: 'Courtyard Lawns' },
+    { name: 'Wedding Ceremony (Pheras)', dateTime: new Date('2026-12-11T18:00:00+05:30'), venue: 'Mandap by the Lake' },
+    { name: 'Grand Reception Dinner', dateTime: new Date('2026-12-12T19:30:00+05:30'), venue: 'Royal Palace Banquet' },
   ];
 
   const createdFunctionIds: string[] = [];

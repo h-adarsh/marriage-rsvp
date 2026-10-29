@@ -7,6 +7,7 @@ import { functions, households, householdFunctions, rsvps, auditLog } from '../d
 import { requireAuth } from '../middleware/auth';
 import { getOwnedFunction } from '../middleware/tenant';
 import { getFunctionHeadcount } from '../services/headcount';
+import { parseWeddingDateTime } from '../utils/date';
 import { generateCatererCsvData } from '../services/csvExport';
 import {
   getFunctionCheckinOverview,
@@ -53,7 +54,7 @@ functionsRouter.put('/:id', async (req: Request, res: Response): Promise<void> =
       .update(functions)
       .set({
         name: name.trim(),
-        dateTime: new Date(dateTime),
+        dateTime: parseWeddingDateTime(dateTime, owned.wedding.timezone),
         venue: venue.trim(),
       })
       .where(eq(functions.id, functionId));

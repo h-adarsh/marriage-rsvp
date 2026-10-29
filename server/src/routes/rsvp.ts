@@ -57,6 +57,7 @@ rsvpRouter.get('/:token', async (req: Request, res: Response): Promise<void> => 
       .select({
         title: weddings.title,
         coupleNames: weddings.coupleNames,
+        timezone: weddings.timezone,
       })
       .from(weddings)
       .where(eq(weddings.id, household.weddingId))
@@ -113,6 +114,7 @@ rsvpRouter.get('/:token', async (req: Request, res: Response): Promise<void> => 
       wedding: {
         title: wedding.title,
         coupleNames: wedding.coupleNames,
+        timezone: wedding.timezone || 'Asia/Kolkata',
       },
       functions: functionsList,
     });

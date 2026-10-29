@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/auth';
 import { getOwnedWedding } from '../middleware/tenant';
 import { householdSchema } from './households';
 import { generateInviteToken } from '../utils/auth';
+import { parseWeddingDateTime } from '../utils/date';
 import multer from 'multer';
 import { processHouseholdCsv, checkDuplicates, normalizePhone } from '../services/csv';
 
@@ -220,7 +221,7 @@ weddingsRouter.post('/:id/functions', async (req: Request, res: Response): Promi
       id: functionId,
       weddingId,
       name: name.trim(),
-      dateTime: new Date(dateTime),
+      dateTime: parseWeddingDateTime(dateTime, wedding.timezone),
       venue: venue.trim(),
     });
 

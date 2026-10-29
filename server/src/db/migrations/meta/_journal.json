@@ -15,6 +15,13 @@
       "when": 1793265931777,
       "tag": "0001_pale_molecule_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1793275000000,
+      "tag": "0002_add_wedding_timezone",
+      "breakpoints": true
     }
   ]
 }
