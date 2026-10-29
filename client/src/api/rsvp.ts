@@ -27,14 +27,21 @@ async function handleResponse<T>(res: Response): Promise<T> {
  * Fetch wedding invitation details by unguessable 128-bit token
  */
 export async function getInvitationByToken(token: string): Promise<PublicRsvpLookupResponse> {
-  const res = await fetch(`${API_BASE}/${encodeURIComponent(token)}`, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-  });
-  return handleResponse<PublicRsvpLookupResponse>(res);
+  try {
+    const res = await fetch(`${API_BASE}/${encodeURIComponent(token)}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    return await handleResponse<PublicRsvpLookupResponse>(res);
+  } catch (err: unknown) {
+    if (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) {
+      throw new Error('Network connection error. Please check your internet connection and try again.');
+    }
+    throw err;
+  }
 }
 
 /**
@@ -44,14 +51,22 @@ export async function submitRsvpApi(
   token: string,
   payload: SubmitRsvpPayload
 ): Promise<{ success: boolean; message: string; submittedCount: number }> {
-  const res = await fetch(`${API_BASE}/${encodeURIComponent(token)}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-    body: JSON.stringify(payload),
-  });
-  return handleResponse<{ success: boolean; message: string; submittedCount: number }>(res);
+  try {
+    const res = await fetch(`${API_BASE}/${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(payload),
+    });
+    return await handleResponse<{ success: boolean; message: string; submittedCount: number }>(res);
+  } catch (err: unknown) {
+    if (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) {
+      throw new Error('Network connection error. Please check your internet connection and try again.');
+    }
+    throw err;
+  }
 }
+

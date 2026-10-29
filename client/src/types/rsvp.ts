@@ -35,3 +35,4 @@ export interface RsvpSubmissionItem {
 export interface SubmitRsvpPayload {
   responses: RsvpSubmissionItem[];
 }
+

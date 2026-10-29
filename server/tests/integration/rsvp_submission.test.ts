@@ -308,6 +308,22 @@ describe('Task T2.5 Integration Tests: Public RSVP Submission API (POST /api/rsv
     expect(res.body.error).toMatch(/Veg \+ Non-Veg count must equal party size/i);
   });
 
+  it('rejects submissions with dietary notes exceeding 500 characters', async () => {
+    const res = await request(app)
+      .post(`/api/rsvp/${token1}`)
+      .send({
+        functionId: function1Id,
+        status: 'yes',
+        partySize: 2,
+        vegCount: 1,
+        nonvegCount: 1,
+        dietaryNotes: 'X'.repeat(501),
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/cannot exceed 500 characters/i);
+  });
+
   it('rejects submissions with duplicate function IDs in the same request', async () => {
     const duplicateBody = [
       { functionId: function1Id, status: 'yes', partySize: 2, vegCount: 2, nonvegCount: 0 },

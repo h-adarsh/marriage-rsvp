@@ -202,7 +202,7 @@ export const GuestRsvpPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !invitationData) return;
+    if (!token || !invitationData || isSubmitting) return;
 
     setSubmitError(null);
 
@@ -454,8 +454,19 @@ export const GuestRsvpPage: React.FC = () => {
           </div>
         )}
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {functions.length === 0 ? (
+          <div className="bg-white rounded-3xl shadow-xl shadow-rose-900/5 border border-rose-100 p-8 sm:p-10 text-center space-y-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 mb-1 border border-rose-100">
+              <Calendar className="w-7 h-7" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 tracking-tight">No Events Assigned Yet</h2>
+            <p className="text-slate-600 text-sm leading-relaxed max-w-sm mx-auto">
+              Your household invitation is confirmed, but specific wedding events have not yet been assigned to your invite. Please check back soon or contact <span className="font-semibold text-slate-800">{wedding.coupleNames}</span> or the wedding planner.
+            </p>
+          </div>
+        ) : (
+          /* Form Body */
+          <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
@@ -829,6 +840,7 @@ export const GuestRsvpPage: React.FC = () => {
             </p>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

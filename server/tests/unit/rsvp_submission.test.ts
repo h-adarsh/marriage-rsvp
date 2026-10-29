@@ -82,6 +82,34 @@ describe('Task T2.5 Unit Tests: RSVP Submission Validation Schema', () => {
       };
       expect(rsvpItemSchema.safeParse(negativeVeg).success).toBe(false);
     });
+
+    it('rejects dietary notes exceeding 500 characters', () => {
+      const longNotes = {
+        functionId,
+        status: 'yes',
+        partySize: 2,
+        vegCount: 1,
+        nonvegCount: 1,
+        dietaryNotes: 'A'.repeat(501),
+      };
+      const res = rsvpItemSchema.safeParse(longNotes);
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error.errors[0].message).toMatch(/cannot exceed 500 characters/i);
+      }
+    });
+
+    it('accepts dietary notes within 500 characters limit', () => {
+      const validNotes = {
+        functionId,
+        status: 'yes',
+        partySize: 2,
+        vegCount: 1,
+        nonvegCount: 1,
+        dietaryNotes: 'A'.repeat(500),
+      };
+      expect(rsvpItemSchema.safeParse(validNotes).success).toBe(true);
+    });
   });
 
   describe('rsvpItemSchema - Status "no" (Declined Attendance)', () => {
