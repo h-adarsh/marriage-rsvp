@@ -35,3 +35,4 @@ describe('parseTrustProxy Utility', () => {
     expect(parseTrustProxy('  loopback, 192.168.1.1  ')).toBe('loopback, 192.168.1.1');
   });
 });
+

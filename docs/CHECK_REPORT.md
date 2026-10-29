@@ -227,5 +227,51 @@ All review criteria for T2.1 and T2.2 are resolved, verified by automated tests 
 **T2.3 and T2.4b COMPLETE & ACCEPTED.**  
 Next task: **T2.5 (Public RSVP submission API with `SELECT ... FOR UPDATE` row lock and concurrency test)**.
 
+---
+
+# Task T2.5 Check Report: Public RSVP Submission API
+
+**Date:** 2026-10-29  
+**Scope Checked:** Task T2.5 (Public RSVP Submission API, `SELECT ... FOR UPDATE` Row Locking, Dietary Validation, Audit Logging, Multi-Item Batch Rollback, and Concurrency Serialization)  
+**Environment:** Node.js v22, MySQL 8.0 (`wedding-mysql`), Express API on `localhost:5001`, React + Vite SPA on `localhost:5173`.  
+**Database Used for Tests:** `wedding_rsvp_test` (asserted by test database naming guard in `server/src/db/index.ts`).
+
+---
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run typecheck` | **PASS** | 0 errors across server and client TypeScript projects. |
+| `npm run lint` | **PASS** | 0 errors, 0 warnings across `server/src` and `client/src`. |
+| `npm run test --workspace=server` | **PASS** | **19 test files, 137 passing tests** (116 → 137 tests, +21 tests added). |
+| Concurrency Stress Test | **PASS** | 5 simultaneous requests with `Promise.all` all returned HTTP 200 without deadlocks; exactly 1 row in DB. |
+| Batch Rollback Proof | **PASS** | Multi-function submission with one valid and one uninvited function rolls back all writes and audit entries. |
+
+---
+
+## 2. Acceptance Criteria & Implementation Matrix
+
+| Requirement / Acceptance Criterion | Implementation Details | Verification Evidence |
+| :--- | :--- | :--- |
+| **`POST /api/rsvp/:token` Endpoint** | Accepts wrapped `{ responses: [...] }`, direct array `[...]`, or single object with `functionId`, `status`, `partySize`, `vegCount`, `nonvegCount`, `dietaryNotes`. | 12 unit tests in `rsvp_submission.test.ts` verify all shapes and validations. |
+| **Dietary Math (`veg + nonveg = party_size`)** | Enforced via Zod refinement. Confirmed attendance (`status: 'yes'`) requires `partySize >= 1` and `vegCount + nonvegCount === partySize`. Negative counts and >50 cap rejected. | `rejects confirmed RSVP where veg + nonveg does not equal party size` and `rejects negative party sizes or counts` pass. |
+| **Unguessable Token & Uniform 404** | Validates 32 hex char token format (`/^[a-f0-9]{32}$/i`). Unknown or malformed tokens return uniform `{ error: 'Invitation not found' }` with status 404. | `returns uniform 404 for invalid or malformed tokens` passes. |
+| **Scope Protection (Invited Only)** | Verifies household is assigned to the function in `household_functions`. Submitting for an uninvited function returns HTTP 400. | `rejects RSVP submission for a function the household was NOT invited to` passes. |
+| **Duplicate Function Defense** | Rejects requests with duplicate `functionId` entries in the same submission with HTTP 400. | `rejects submissions with duplicate function IDs in the same request` passes. |
+| **Explicit Row Locking (`FOR UPDATE`)** | Chained `.for('update')` in Drizzle ORM on both `household_functions` and `rsvps` rows inside the transaction. Symmetrically applied to unassign path in `functions.ts`. | Verified in `rsvp.ts` lines 183-207 and `functions.ts` lines 263-285. |
+| **Concurrency Serialization** | 5 concurrent submissions on the same household/function execute safely without deadlocks or corrupted rows. | `safely serializes concurrent RSVP submissions on the same household without data corruption or deadlocks` passes. |
+| **Multi-Item Batch Atomic Rollback** | When submitting a multi-function batch where one item fails mid-transaction, all previous writes and audit logs are rolled back cleanly. | `proves atomic rollback: if one response in a multi-function batch fails, all prior writes in that batch are rolled back` passes. |
+| **Audit Logging Without PII** | Writes `actorType: 'guest'`, `action: 'submit_rsvp'` or `'update_rsvp'`, tracking changes. `ipAddress` stored as `null` to respect privacy. | `submits initial RSVPs for invited functions with strict dietary validation and audit logging` passes. |
+| **Cross-Layer Protection** | Unassigning a household that has submitted an active RSVP ('yes' or 'maybe') is blocked with HTTP 400. | `prevents planner from uninviting a household that submitted an active RSVP` passes. |
+
+---
+
+## 3. Verdict
+**Task T2.5 COMPLETE & VERIFIED.**  
+All 137 tests passing.  
+Next task in sequence: **T2.7 & T2.8 (Mobile-first Guest RSVP UI & submission flow)**.
+
+
 
 

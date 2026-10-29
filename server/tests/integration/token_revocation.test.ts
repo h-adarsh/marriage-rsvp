@@ -131,3 +131,4 @@ describe('Task T2.4b: Invite Link Revocation & Token Regeneration (POST /api/hou
     expect(crossPlannerRes.body).toEqual({ error: 'Household not found' });
   });
 });
+

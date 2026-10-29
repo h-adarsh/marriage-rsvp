@@ -13,3 +13,4 @@ export function antiLeakHeaders(_req: Request, res: Response, next: NextFunction
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   next();
 }
+

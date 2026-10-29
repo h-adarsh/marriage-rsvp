@@ -23,3 +23,4 @@ export function parseTrustProxy(val?: string | null): boolean | number | string 
   }
   return trimmed;
 }
+
