@@ -12,7 +12,7 @@ export interface ParsedHouseholdRow {
 export interface DuplicateReport {
   rowNumber: number;
   name: string;
-  phone: string;
+  phone: string | null;
   reason: string;
   canOverride?: boolean;
 }
@@ -21,7 +21,7 @@ export interface ExistingHouseholdSummary {
   id: string;
   name: string;
   primaryContactName?: string;
-  phone: string;
+  phone: string | null;
 }
 
 /**
@@ -75,7 +75,8 @@ export function parseCsvRows(csvText: string): string[][] {
  * Normalizes phone numbers for duplicate comparison and storage.
  * Handles standard 10-digit Indian numbers, leading 0, and country code prefix (+91).
  */
-export function normalizePhone(phone: string): string {
+export function normalizePhone(phone?: string | null): string {
+  if (!phone) return '';
   const digits = phone.replace(/\D/g, '');
   if (digits.length === 10) return `+91${digits}`;
   if (digits.length === 11 && digits.startsWith('0')) return `+91${digits.slice(1)}`;
@@ -135,7 +136,7 @@ export function processHouseholdCsv(csvContent: string): {
       error = 'Household name is missing';
     } else if (!rawContact) {
       error = 'Primary contact name is missing';
-    } else if (!cleanPhone || !/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
+    } else if (cleanPhone && !/^\+?[0-9]{7,15}$/.test(cleanPhone)) {
       error = 'Invalid phone number (must be 7-15 digits)';
     }
 

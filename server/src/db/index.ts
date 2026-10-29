@@ -18,8 +18,11 @@ if (isTestEnv && !connectionUri.match(/\/([^/?]+_test)(\?.*)?$/)) {
 }
 
 
-// Create a connection pool for efficient query execution
-export const pool = mysql.createPool(connectionUri);
+// Create a connection pool with UTC timezone to match JavaScript Date objects and prevent clock drift
+export const pool = mysql.createPool({
+  uri: connectionUri,
+  timezone: 'Z',
+});
 
 // Instantiate Drizzle ORM with complete schema for relational queries
 export const db = drizzle(pool, { schema, mode: 'default' });

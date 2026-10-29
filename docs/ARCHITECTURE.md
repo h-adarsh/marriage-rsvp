@@ -180,7 +180,7 @@ Tracks changes to sensitive invitation and RSVP data for accountability.
 | `entity_id` | `VARCHAR(36)` | NOT NULL | Target entity ID |
 | `old_values` | `JSON` | NULL | Prior snapshot |
 | `new_values` | `JSON` | NULL | Updated snapshot |
-| `ip_address` | `VARCHAR(45)` | NULL | Request IP |
+| `ip_address` | `VARCHAR(45)` | NULL | Request IP (stored as `null` for public guest RSVPs to protect guest privacy) |
 | `created_at` | `TIMESTAMP` | NOT NULL, DEFAULT NOW() | Timestamp |
 
 *Index:* `INDEX idx_audit_wedding_created (wedding_id, created_at)`
@@ -376,7 +376,7 @@ project/
 - **Attack Vector**: Attacker scans or brute-forces `/rsvp/:token` URLs to view guest details or tamper with RSVPs.
 - **Mitigation**:
   1. Tokens are generated using `crypto.randomBytes(16).toString('hex')` (128 bits of cryptographic entropy = $3.4 \times 10^{38}$ possibilities).
-  2. Public RSVP routes are rate-limited via `express-rate-limit` to 30 requests per minute per IP.
+  2. Public RSVP routes employ tiered rate limiting via `express-rate-limit`: a general tier of 100 requests per 15 minutes per IP for legitimate guests sharing Wi-Fi/NAT networks, and a strict tier of 10 failed attempts per 15 minutes per IP specifically penalizing non-existent/invalid tokens (`skipSuccessfulRequests: true`).
   3. No sequential numeric IDs are accepted on public endpoints.
 
 ### 7.2 Threat: Cross-Tenant Data Access (Broken Object Level Authorization)

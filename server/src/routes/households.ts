@@ -17,7 +17,12 @@ householdsRouter.use(requireAuth);
 export const householdSchema = z.object({
   name: z.string().min(1, 'Household name is required').max(150),
   primaryContactName: z.string().min(1, 'Primary contact name is required').max(100),
-  phone: z.string().regex(/^\+?[0-9]{7,15}$/, 'Phone number must be between 7 and 15 digits (optional leading +)'),
+  phone: z
+    .string()
+    .regex(/^\+?[0-9]{7,15}$/, 'Phone number must be between 7 and 15 digits (optional leading +)')
+    .optional()
+    .nullable()
+    .or(z.literal('')),
   expectedPartySize: z.number().int().min(1, 'Party size must be at least 1').max(50, 'Party size cannot exceed 50'),
   notes: z.string().max(1000).optional().nullable(),
 });
@@ -48,7 +53,7 @@ householdsRouter.put('/:id', async (req: Request, res: Response): Promise<void> 
       .set({
         name: name.trim(),
         primaryContactName: primaryContactName.trim(),
-        phone: normalizePhone(phone),
+        phone: phone && phone.trim() ? normalizePhone(phone) : null,
         expectedPartySize,
         notes: notes ? notes.trim() : null,
       })

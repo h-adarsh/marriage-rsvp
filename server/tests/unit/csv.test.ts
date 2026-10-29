@@ -49,6 +49,17 @@ Verma Family,Sunita Verma,+919876543212,0,Valid with fallback`;
     expect(invalidRows[1].validationError).toMatch(/invalid phone/i);
   });
 
+  it('accepts rows with omitted or empty phone numbers in CSV', () => {
+    const csv = `Household Name,Contact,Phone,Party Size
+Elderly Household,Dadi Ji,,2
+Letter Invite Only,Chacha Ji,,3`;
+    const { validRows, invalidRows } = processHouseholdCsv(csv);
+    expect(validRows).toHaveLength(2);
+    expect(invalidRows).toHaveLength(0);
+    expect(validRows[0].phone).toBe('');
+    expect(validRows[1].phone).toBe('');
+  });
+
   it('allows two different families sharing the same surname/name with different phones', () => {
     const incoming = [
       {

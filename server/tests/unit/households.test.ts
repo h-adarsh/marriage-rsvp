@@ -75,6 +75,34 @@ describe('Household Input Validation Rules', () => {
     }
   });
 
+  it('accepts household with omitted phone number', () => {
+    const valid = {
+      name: 'Elderly Relatives',
+      primaryContactName: 'Dadi Ji',
+      expectedPartySize: 2,
+    };
+    const result = householdSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts household with null or empty string phone number', () => {
+    const withNull = {
+      name: 'Elderly Relatives',
+      primaryContactName: 'Dadi Ji',
+      phone: null,
+      expectedPartySize: 2,
+    };
+    expect(householdSchema.safeParse(withNull).success).toBe(true);
+
+    const withEmpty = {
+      name: 'Elderly Relatives',
+      primaryContactName: 'Dadi Ji',
+      phone: '',
+      expectedPartySize: 2,
+    };
+    expect(householdSchema.safeParse(withEmpty).success).toBe(true);
+  });
+
   it('rejects empty household name or contact name', () => {
     const invalid = {
       name: '',

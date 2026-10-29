@@ -44,9 +44,9 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 > **As a planner**, I can add guest households manually or via CSV import with duplicate detection so that I maintain an organized guest registry.
 
 **Acceptance Criteria:**
-- [x] Planner can add a household with household name, primary contact name, phone number, expected party size, and optional notes.
-- [x] Planner can upload a CSV file (columns: Household Name, Primary Contact, Phone, Expected Party Size).
-- [x] CSV import flags duplicates matching existing records on phone number or normalized household name before committing.
+- [x] Planner can add a household with household name, primary contact name, optional phone number, expected party size, and optional notes.
+- [x] Planner can upload a CSV file (columns: Household Name, Primary Contact, Phone, Expected Party Size, Notes; phone is optional).
+- [x] CSV import flags duplicates matching existing records on phone number (when provided) or normalized household name and primary contact before committing. Empty phone numbers never match other empty phones.
 - [x] CSV uploads exceeding 2MB or containing invalid formatting are rejected with descriptive errors.
 - [x] Guest list displays all households with search and filter capabilities.
 

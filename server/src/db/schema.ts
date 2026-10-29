@@ -73,7 +73,7 @@ export const households = mysqlTable('households', {
     .references(() => weddings.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 150 }).notNull(),
   primaryContactName: varchar('primary_contact_name', { length: 100 }).notNull(),
-  phone: varchar('phone', { length: 20 }).notNull(),
+  phone: varchar('phone', { length: 20 }),
   expectedPartySize: int('expected_party_size').notNull().default(1),
   // 128-bit unguessable random token stored directly for MVP capability links
   inviteToken: varchar('invite_token', { length: 64 }).notNull(),

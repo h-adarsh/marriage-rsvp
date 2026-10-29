@@ -435,5 +435,104 @@ describe('Task T2.5 Integration Tests: Public RSVP Submission API (POST /api/rsv
     expect(uninviteRes.status).toBe(400);
     expect(uninviteRes.body.error).toMatch(/Cannot unassign household that has already submitted an active RSVP/i);
   });
+
+  it('normalizes meal counts to 0 for status "maybe" even if client supplies meal numbers', async () => {
+    const res = await request(app)
+      .post(`/api/rsvp/${token1}`)
+      .send({
+        functionId: function1Id,
+        status: 'maybe',
+        partySize: 3,
+        vegCount: 2,
+        nonvegCount: 1,
+        dietaryNotes: 'Might come late',
+      });
+
+    expect(res.status).toBe(200);
+
+    const [row] = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.householdId, household1Id), eq(rsvps.functionId, function1Id)));
+
+    expect(row).toBeDefined();
+    expect(row.status).toBe('maybe');
+    expect(row.partySize).toBe(3);
+    expect(row.vegCount).toBe(0);
+    expect(row.nonvegCount).toBe(0);
+    expect(row.dietaryNotes).toBe('Might come late');
+  });
+
+  it('safely serializes concurrent unassign and RSVP submission with Promise.all and row locks', async () => {
+    // Create a fresh household assigned to function1
+    const testHouseholdId = crypto.randomUUID();
+    const testToken = generateInviteToken();
+    await db.insert(households).values({
+      id: testHouseholdId,
+      weddingId,
+      name: 'Concurrent Race Family',
+      primaryContactName: 'Racer Kapoor',
+      phone: '+919999900001',
+      expectedPartySize: 2,
+      inviteToken: testToken,
+    });
+
+    await db.insert(householdFunctions).values({
+      id: crypto.randomUUID(),
+      householdId: testHouseholdId,
+      functionId: function1Id,
+    });
+
+    // Fire guest RSVP ('yes') and planner unassign concurrently
+    const guestRsvpReq = request(app)
+      .post(`/api/rsvp/${testToken}`)
+      .send({
+        functionId: function1Id,
+        status: 'yes',
+        partySize: 2,
+        vegCount: 2,
+        nonvegCount: 0,
+      });
+
+    const plannerUnassignReq = request(app)
+      .post(`/api/functions/${function1Id}/invitations`)
+      .set('Cookie', cookiePlannerA)
+      .send({ remove: [testHouseholdId] });
+
+    const [rsvpRes, unassignRes] = await Promise.all([guestRsvpReq, plannerUnassignReq]);
+
+    // Due to InnoDB row-level locking (SELECT ... FOR UPDATE):
+    // Case 1: Guest RSVP transaction acquires lock first -> RSVP succeeds (200), unassign is blocked by attendance protection (400)
+    // Case 2: Unassign transaction acquires lock first -> unassign succeeds (200), guest RSVP is rejected as not invited (400)
+    const statuses = [rsvpRes.status, unassignRes.status];
+    expect(statuses).toContain(200);
+    expect(statuses).toContain(400);
+
+    // Verify database consistency: no partial, orphaned, or corrupted records
+    const rsvpRow = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.householdId, testHouseholdId), eq(rsvps.functionId, function1Id)));
+
+    const assignmentRow = await db
+      .select()
+      .from(householdFunctions)
+      .where(and(eq(householdFunctions.householdId, testHouseholdId), eq(householdFunctions.functionId, function1Id)));
+
+    if (rsvpRes.status === 200) {
+      // RSVP won the race: assignment must exist, RSVP row must exist with status 'yes'
+      expect(unassignRes.status).toBe(400);
+      expect(unassignRes.body.error).toMatch(/Cannot unassign household that has already submitted an active RSVP/i);
+      expect(assignmentRow).toHaveLength(1);
+      expect(rsvpRow).toHaveLength(1);
+      expect(rsvpRow[0].status).toBe('yes');
+    } else {
+      // Unassign won the race: household was unassigned, RSVP rejected
+      expect(rsvpRes.status).toBe(400);
+      expect(rsvpRes.body.error).toMatch(/Household is not invited to function/i);
+      expect(assignmentRow).toHaveLength(0);
+      expect(rsvpRow).toHaveLength(0);
+    }
+  });
 });
 

@@ -113,7 +113,7 @@
 
 ## 4. Security Findings
 1. **Multi-Tenant Ownership:** **STRONG.** Verified that all wedding, function, and household mutating and reading endpoints strictly filter by `planner_id` via `getOwnedWedding`, `getOwnedFunction`, and `getOwnedHousehold`. Cross-tenant ID enumeration returns 404.
-2. **Session Security:** **STRONG.** Argon2id hashing with 64MB memory cost, 3 iterations; dummy verify for constant-time comparison on nonexistent accounts; cookie marked `HttpOnly` and `SameSite=Strict`.
+2. **Session Security:** **STRONG.** Argon2id hashing with 64MB memory cost, 3 iterations; dummy Argon2id verification on nonexistent accounts to mitigate timing-based account enumeration; cookie marked `HttpOnly` and `SameSite=Strict`.
 3. **Defense Gaps:**
    - `.env` unprotected by `.gitignore`.
    - Missing error handler for Multer file size exhaustion.
