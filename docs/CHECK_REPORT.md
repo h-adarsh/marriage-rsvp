@@ -444,8 +444,45 @@ Both `tests/unit/headcount.test.ts`, `tests/integration/headcount.test.ts`, and 
 ---
 
 ## 3. Verdict (Task T3.5 & Milestone 3)
-**Task T3.5 COMPLETE & ACCEPTED. Milestone 3 is now 100% complete!**  
-Next task in sequence: **Milestone 4: Task T4.1 (Venue Check-In Backend: `checkins` table schema, migration, and arrival APIs)**.
+**Task T3.5 COMPLETE & ACCEPTED. Milestone 3 is now 100% complete!**
+
+---
+
+# Task T4.1: Venue Check-In Backend Engine & Arrival APIs
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run db:push --workspace=server` | **PASS** | Applied `checkins` table schema and indexes to `wedding_rsvp` dev database. |
+| `DATABASE_URL="mysql://.../wedding_rsvp_test" npm run db:push --workspace=server` | **PASS** | Applied `checkins` table schema and indexes to `wedding_rsvp_test` test database. |
+| `npm run typecheck --workspace=client` | **PASS** | 0 TypeScript errors. |
+| `npm run build --workspace=server` | **PASS** | `tsc` compiled server with 0 errors. |
+| `npm run build --workspace=client` | **PASS** | `vite build` completed in 1.69s with 0 errors. |
+| `npm run test --workspace=server tests/unit/schema.test.ts` | **PASS** | 6 unit tests passing, verifying `checkins` columns and constraints. |
+| `npm run test --workspace=server tests/integration/checkins.test.ts` | **PASS** | 16 integration tests passing across all checkin endpoints. |
+| `npm test` | **PASS** | **24 test files, 186 passing tests (100% pass rate)**. |
+
+---
+
+## 2. Acceptance Criteria & Implementation Matrix
+
+| Requirement / Acceptance Criterion | Implementation Details | Verification Evidence |
+| :--- | :--- | :--- |
+| **Decoupled `checkins` Table Schema** | Dedicated `checkins` table (`id`, `wedding_id`, `function_id`, `household_id` NULLable, `guest_name`, `actual_party_size`, `is_walkin`, `notes`, `checked_in_at`, `created_at`, `updated_at`). Decouples check-in state from original `rsvps` table to prevent data corruption and support walk-in arrivals who never RSVP'd. | Schema definition in `schema.ts`, verified by unit tests in `schema.test.ts`. |
+| **Comprehensive Check-In Overview (`GET /api/functions/:id/checkins`)** | Returns live tally summary (`totalCheckedInGuests`, `totalCheckedInHouseholds`, `walkinGuests`, `walkinCount`, `confirmedHeadcount`, `invitedHeadcount`), all completed check-in arrival items, and full searchable invited households registry with `isCheckedIn`, `actualPartySize`, and `checkedInAt`. | Integration tests in `checkins.test.ts`. |
+| **Arrival Recording & Upsert (`POST /api/functions/:id/checkins`)** | Validates party size ($\ge 1$, $\le 50$) and function invitation. If household already checked in, idempotently updates party size and notes without creating duplicates. If walk-in (`householdId: null`), validates `guestName` and sets `isWalkin: true`. | Integration tests in `checkins.test.ts`. |
+| **Undo Check-In (`DELETE /api/functions/:id/checkins/:checkinId`)** | Removes checkin record and updates live metrics. Returns uniform 404 for nonexistent or unauthorized checkins. | Integration tests in `checkins.test.ts`. |
+| **Party Size Adjustment (`PATCH /api/functions/:id/checkins/:checkinId`)** | Allows venue coordinators to update actual party size or arrival notes. | Integration tests in `checkins.test.ts`. |
+| **Multi-Tenant Protection & IDOR Defense** | Every check-in endpoint validates that the target function belongs to a wedding owned by the authenticated planner (`getOwnedFunction`). Cross-planner access returns 404. Checking in a household from a foreign wedding returns 400. | Integration tests in `checkins.test.ts`. |
+| **Audit Log Trail** | Writes audit log entries for `venue_checkin`, `update_checkin`, and `undo_checkin` with actor, entity ID, previous/new values, and client IP. | Verified via direct DB assertions in `checkins.test.ts`. |
+
+---
+
+## 3. Verdict (Task T4.1)
+**Task T4.1 COMPLETE & ACCEPTED.**  
+Next task in sequence: **Task T4.2: Mobile Check-In UI (Fast name search, tap-to-check-in, actual party size adjuster, live confirmed vs. arrived tally)**.
+
 
 
 

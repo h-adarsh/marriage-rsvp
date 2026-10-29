@@ -166,7 +166,7 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 ---
 
 ### Milestone 4: Check-In Screen, Security Pass, Tests & Deploy (Weeks 7–8)
-- **T4.1**: Check-in backend endpoint (`/api/functions/:id/checkin`, toggle checked-in state, update actual arrival count). *[2.0h]*
+- [x] **T4.1**: Venue Check-In backend (`checkins` table schema, migration, `GET /api/functions/:id/checkins`, `POST /api/functions/:id/checkins`, `DELETE /api/functions/:id/checkins/:checkinId`, `PATCH /api/functions/:id/checkins/:checkinId`, walk-in support, audit logging). *[2.0h]*
 - **T4.2**: Mobile check-in UI (Fast name search, tap-to-check-in, actual party size adjuster, live confirmed vs. arrived tally). *[2.0h]*
 - **T4.3**: Security review pass (Verify wedding ownership checks on every planner route, verify no token leaks in logs, test rate limits). *[2.0h]*
 - **T4.4**: Test suite implementation (Vitest unit tests for headcount/estimate formulas, Supertest for auth & tenant isolation, Playwright for end-to-end invite-to-RSVP flow). *[2.0h]*

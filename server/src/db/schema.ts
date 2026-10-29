@@ -140,6 +140,30 @@ export const auditLog = mysqlTable('audit_log', {
   auditWeddingCreatedIdx: index('idx_audit_wedding_created').on(table.weddingId, table.createdAt),
 }));
 
+// 9. Checkins: Venue arrivals tracking (supporting both invited households and walk-ins)
+export const checkins = mysqlTable('checkins', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  weddingId: varchar('wedding_id', { length: 36 })
+    .notNull()
+    .references(() => weddings.id, { onDelete: 'cascade' }),
+  functionId: varchar('function_id', { length: 36 })
+    .notNull()
+    .references(() => functions.id, { onDelete: 'cascade' }),
+  householdId: varchar('household_id', { length: 36 })
+    .references(() => households.id, { onDelete: 'set null' }),
+  guestName: varchar('guest_name', { length: 150 }).notNull(),
+  actualPartySize: int('actual_party_size').notNull().default(1),
+  isWalkin: boolean('is_walkin').notNull().default(false),
+  notes: text('notes'),
+  checkedInAt: timestamp('checked_in_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+}, (table) => ({
+  funcHhIdx: index('idx_checkins_func_hh').on(table.functionId, table.householdId),
+  funcIdx: index('idx_checkins_func').on(table.functionId),
+  weddingIdx: index('idx_checkins_wedding').on(table.weddingId),
+}));
+
 // Drizzle ORM Relations definitions for type-safe relational queries
 export const plannersRelations = relations(planners, ({ many }) => ({
   weddings: many(weddings),
@@ -153,6 +177,7 @@ export const weddingsRelations = relations(weddings, ({ one, many }) => ({
   }),
   functions: many(functions),
   households: many(households),
+  checkins: many(checkins),
   auditLogs: many(auditLog),
 }));
 
@@ -163,6 +188,7 @@ export const functionsRelations = relations(functions, ({ one, many }) => ({
   }),
   householdFunctions: many(householdFunctions),
   rsvps: many(rsvps),
+  checkins: many(checkins),
 }));
 
 export const householdsRelations = relations(households, ({ one, many }) => ({
@@ -172,6 +198,7 @@ export const householdsRelations = relations(households, ({ one, many }) => ({
   }),
   householdFunctions: many(householdFunctions),
   rsvps: many(rsvps),
+  checkins: many(checkins),
 }));
 
 export const householdFunctionsRelations = relations(householdFunctions, ({ one }) => ({
@@ -192,6 +219,21 @@ export const rsvpsRelations = relations(rsvps, ({ one }) => ({
   }),
   household: one(households, {
     fields: [rsvps.householdId],
+    references: [households.id],
+  }),
+}));
+
+export const checkinsRelations = relations(checkins, ({ one }) => ({
+  wedding: one(weddings, {
+    fields: [checkins.weddingId],
+    references: [weddings.id],
+  }),
+  function: one(functions, {
+    fields: [checkins.functionId],
+    references: [functions.id],
+  }),
+  household: one(households, {
+    fields: [checkins.householdId],
     references: [households.id],
   }),
 }));

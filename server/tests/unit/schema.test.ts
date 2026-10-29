@@ -8,11 +8,12 @@ import {
   householdFunctions,
   rsvps,
   auditLog,
+  checkins,
 } from '../../src/db/schema';
 import { getTableColumns } from 'drizzle-orm';
 
 describe('Database Schema Definitions', () => {
-  it('defines all 8 required tables', () => {
+  it('defines all 9 core tables including checkins', () => {
     expect(planners).toBeDefined();
     expect(sessions).toBeDefined();
     expect(weddings).toBeDefined();
@@ -21,6 +22,7 @@ describe('Database Schema Definitions', () => {
     expect(householdFunctions).toBeDefined();
     expect(rsvps).toBeDefined();
     expect(auditLog).toBeDefined();
+    expect(checkins).toBeDefined();
   });
 
   it('verifies planners table columns', () => {
@@ -60,5 +62,18 @@ describe('Database Schema Definitions', () => {
     expect(cols).toHaveProperty('action');
     expect(cols).toHaveProperty('entityType');
     expect(cols).toHaveProperty('entityId');
+  });
+
+  it('verifies checkins table columns for arrival tracking and walk-in support', () => {
+    const cols = getTableColumns(checkins);
+    expect(cols).toHaveProperty('id');
+    expect(cols).toHaveProperty('weddingId');
+    expect(cols).toHaveProperty('functionId');
+    expect(cols).toHaveProperty('householdId');
+    expect(cols).toHaveProperty('guestName');
+    expect(cols).toHaveProperty('actualPartySize');
+    expect(cols).toHaveProperty('isWalkin');
+    expect(cols).toHaveProperty('notes');
+    expect(cols).toHaveProperty('checkedInAt');
   });
 });

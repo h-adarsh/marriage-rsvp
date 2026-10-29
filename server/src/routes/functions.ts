@@ -8,6 +8,12 @@ import { requireAuth } from '../middleware/auth';
 import { getOwnedFunction } from '../middleware/tenant';
 import { getFunctionHeadcount } from '../services/headcount';
 import { generateCatererCsvData } from '../services/csvExport';
+import {
+  getFunctionCheckinOverview,
+  recordCheckin,
+  undoCheckin,
+  updateCheckin,
+} from '../services/checkin';
 
 export const functionsRouter = Router();
 
@@ -509,6 +515,175 @@ functionsRouter.get('/:id/export-csv', async (req: Request, res: Response): Prom
   } catch (error) {
     console.error('[functions] Export CSV error:', error);
     res.status(500).json({ error: 'Failed to generate caterer CSV export' });
+  }
+});
+
+const recordCheckinSchema = z.object({
+  householdId: z.string().uuid().optional().nullable(),
+  guestName: z.string().max(150).optional(),
+  actualPartySize: z.number().int().min(1, 'Actual party size must be at least 1').max(50, 'Party size exceeds limit'),
+  isWalkin: z.boolean().optional(),
+  notes: z.string().max(500).optional().nullable(),
+}).refine((data) => data.householdId || (data.guestName && data.guestName.trim().length > 0), {
+  message: 'Guest name is required for walk-in arrivals',
+  path: ['guestName'],
+});
+
+const updateCheckinSchema = z.object({
+  actualPartySize: z.number().int().min(1).max(50).optional(),
+  guestName: z.string().min(1).max(150).optional(),
+  notes: z.string().max(500).optional().nullable(),
+});
+
+/**
+ * GET /api/functions/:id/checkins - Venue check-in dashboard & guest arrival status
+ */
+functionsRouter.get('/:id/checkins', async (req: Request, res: Response): Promise<void> => {
+  const functionId = req.params.id;
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    const overview = await getFunctionCheckinOverview(functionId);
+
+    res.json({
+      ...overview,
+      functionName: owned.function.name,
+      functionVenue: owned.function.venue,
+      weddingId: owned.wedding.id,
+      weddingTitle: owned.wedding.title,
+    });
+  } catch (error) {
+    console.error('[functions] Get checkins error:', error);
+    res.status(500).json({ error: 'Failed to retrieve check-in overview' });
+  }
+});
+
+/**
+ * POST /api/functions/:id/checkins - Record guest arrival (invited household or walk-in)
+ */
+functionsRouter.post('/:id/checkins', async (req: Request, res: Response): Promise<void> => {
+  const functionId = req.params.id;
+
+  const parseResult = recordCheckinSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ error: parseResult.error.errors[0]?.message || 'Invalid check-in data' });
+    return;
+  }
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || null;
+
+    const result = await recordCheckin({
+      weddingId: owned.wedding.id,
+      functionId,
+      householdId: parseResult.data.householdId || null,
+      guestName: parseResult.data.guestName,
+      actualPartySize: parseResult.data.actualPartySize,
+      isWalkin: parseResult.data.isWalkin,
+      notes: parseResult.data.notes || null,
+      ipAddress: clientIp,
+      plannerId: req.user!.id,
+    });
+
+    res.status(result.isNew ? 201 : 200).json(result);
+  } catch (error: any) {
+    console.error('[functions] Record check-in error:', error);
+    const message = error?.message || 'Failed to record check-in';
+    const isClientError =
+      message.includes('not invited') ||
+      message.includes('not belong') ||
+      message.includes('required');
+    res.status(isClientError ? 400 : 500).json({ error: message });
+  }
+});
+
+/**
+ * DELETE /api/functions/:id/checkins/:checkinId - Undo guest check-in
+ */
+functionsRouter.delete('/:id/checkins/:checkinId', async (req: Request, res: Response): Promise<void> => {
+  const { id: functionId, checkinId } = req.params;
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || null;
+
+    const success = await undoCheckin({
+      functionId,
+      checkinId,
+      weddingId: owned.wedding.id,
+      plannerId: req.user!.id,
+      ipAddress: clientIp,
+    });
+
+    if (!success) {
+      res.status(404).json({ error: 'Check-in record not found' });
+      return;
+    }
+
+    res.json({ success: true, message: 'Check-in undone successfully' });
+  } catch (error) {
+    console.error('[functions] Undo check-in error:', error);
+    res.status(500).json({ error: 'Failed to undo check-in' });
+  }
+});
+
+/**
+ * PATCH /api/functions/:id/checkins/:checkinId - Update check-in record
+ */
+functionsRouter.patch('/:id/checkins/:checkinId', async (req: Request, res: Response): Promise<void> => {
+  const { id: functionId, checkinId } = req.params;
+
+  const parseResult = updateCheckinSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ error: parseResult.error.errors[0]?.message || 'Invalid update data' });
+    return;
+  }
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || null;
+
+    const updated = await updateCheckin({
+      functionId,
+      checkinId,
+      weddingId: owned.wedding.id,
+      plannerId: req.user!.id,
+      actualPartySize: parseResult.data.actualPartySize,
+      guestName: parseResult.data.guestName,
+      notes: parseResult.data.notes,
+      ipAddress: clientIp,
+    });
+
+    if (!updated) {
+      res.status(404).json({ error: 'Check-in record not found' });
+      return;
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error('[functions] Update check-in error:', error);
+    res.status(500).json({ error: 'Failed to update check-in' });
   }
 });
 
