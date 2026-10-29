@@ -272,6 +272,47 @@ Next task: **T2.5 (Public RSVP submission API with `SELECT ... FOR UPDATE` row l
 All 137 tests passing.  
 Next task in sequence: **T2.7 & T2.8 (Mobile-first Guest RSVP UI & submission flow)**.
 
+---
+
+# Tasks T2.7 & T2.8 Check Report: Mobile-First Guest RSVP UI & Submission Flow
+
+**Date:** 2026-10-29  
+**Scope Checked:** Tasks T2.7 & T2.8 (Mobile-first Guest RSVP UI, `/rsvp/:token` capability route, Yes/No/Maybe selectors, live dietary balance validation, instant confirmation screen, and return-to-edit capability).  
+**Environment:** Node.js v22, MySQL 8.0 (`wedding-mysql`), Express API on `localhost:5001`, React + Vite SPA on `localhost:5173`.
+
+---
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run typecheck` | **PASS** | 0 errors across `server` and `client` TypeScript configurations. |
+| `npm run lint` | **PASS** | 0 errors, 0 warnings across `server/src` and `client/src`. |
+| `npm run build` | **PASS** | Full production build (`tsc && vite build`) built in 1.70s with 0 errors. |
+| `npm test` | **PASS** | Server: 19 test files, 137 passing tests. Client: typecheck verified. |
+| Live Capability URL Check | **PASS** | `GET /api/rsvp/:token` and `/rsvp/:token` respond with 200 OK for valid tokens, 404 for malformed/unknown tokens. |
+
+---
+
+## 2. Acceptance Criteria & Implementation Matrix
+
+| Requirement / Acceptance Criterion | Implementation Details | Verification Evidence |
+| :--- | :--- | :--- |
+| **Public Capability Route** | Added unauthenticated public route `<Route path="/rsvp/:token" element={<GuestRsvpPage />} />` in `App.tsx`. | Verified via HTTP GET on `localhost:5173/rsvp/<token>`. |
+| **Invited Functions Scoping** | Calls `getInvitationByToken(token)` which returns only the events assigned to this household in `household_functions`. | Card list renders only invited functions. |
+| **Attendance Selectors** | Touch-friendly cards for **Attending (Yes)**, **Decline (No)**, and **Tentative (Maybe)** with $\ge 48\text{px}$ touch targets. | Implemented in `GuestRsvpPage.tsx`. |
+| **Live Dietary Balance Validation** | Instant live client math check on `vegCount + nonvegCount === partySize`. Shows green indicator when balanced, warning badge when under/over allocated. | Form submit prevented if meal counts do not equal party size. |
+| **Return-to-Edit Detection** | Pre-populates previously saved RSVP responses when revisiting the link. Shows notification banner explaining answers can be changed. | Verified with seeded Kapoor Family data. |
+| **Instant Confirmation View** | On successful submission, displays celebration banner, comprehensive summary of responses per event, and an "Edit or Change Responses" button. | Implemented in `GuestRsvpPage.tsx`. |
+| **Error Handling** | Displays friendly error states for invalid/expired tokens (404), rate limit saturation (429), or missing field selections. | Verified in `GuestRsvpPage.tsx` and `rsvp.ts`. |
+
+---
+
+## 3. Verdict
+**Tasks T2.7 & T2.8 COMPLETE & ACCEPTED.**  
+Next task in sequence: **T2.4 (WhatsApp share link generator on household cards)**.
+
+
 
 
 
