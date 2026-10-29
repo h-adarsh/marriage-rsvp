@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
@@ -53,6 +54,18 @@ app.use('/api/weddings', weddingsRouter);
 app.use('/api/functions', functionsRouter);
 app.use('/api/households', householdsRouter);
 app.use('/api/rsvp', rsvpRouter);
+
+// In production, serve the compiled Vite SPA static files and fallback to index.html for client routing
+if (process.env.NODE_ENV === 'production') {
+  const clientDistPath = path.resolve(__dirname, '../../../client/dist');
+  app.use(express.static(clientDistPath));
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 // Centralized error handler
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
