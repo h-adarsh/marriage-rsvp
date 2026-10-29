@@ -143,9 +143,6 @@ export const rsvpItemSchema = z
         return true;
       }
       if (data.status === 'maybe') {
-        if (data.partySize > 0) {
-          return data.vegCount + data.nonvegCount === data.partySize;
-        }
         return true;
       }
       return true;
@@ -253,8 +250,8 @@ rsvpRouter.post('/:token', async (req: Request, res: Response): Promise<void> =>
           .limit(1);
 
         const normalizedPartySize = item.status === 'no' ? 0 : item.partySize;
-        const normalizedVeg = item.status === 'no' ? 0 : item.vegCount;
-        const normalizedNonveg = item.status === 'no' ? 0 : item.nonvegCount;
+        const normalizedVeg = item.status === 'yes' ? item.vegCount : 0;
+        const normalizedNonveg = item.status === 'yes' ? item.nonvegCount : 0;
         const dietaryNotes = item.dietaryNotes ? item.dietaryNotes.trim() : null;
 
         if (existingRsvp) {
@@ -296,6 +293,7 @@ rsvpRouter.post('/:token', async (req: Request, res: Response): Promise<void> =>
         } else {
           // Create new RSVP response
           const newRsvpId = crypto.randomUUID();
+          const submissionTimestamp = new Date();
           await tx.insert(rsvps).values({
             id: newRsvpId,
             functionId: item.functionId,
@@ -305,6 +303,7 @@ rsvpRouter.post('/:token', async (req: Request, res: Response): Promise<void> =>
             vegCount: normalizedVeg,
             nonvegCount: normalizedNonveg,
             dietaryNotes,
+            respondedAt: submissionTimestamp,
           });
 
           await tx.insert(auditLog).values({

@@ -230,22 +230,24 @@ Tracks changes to sensitive invitation and RSVP data for accountability.
 | `POST` | `/api/weddings/:id/households/import-csv` | Wedding ownership | Multipart Form: `file` ($\le 2\text{MB}$) | `200 { imported: N, duplicates: [ ... ] }` | `400` invalid CSV / exceeds limit |
 | `PUT` | `/api/households/:id` | Household $\rightarrow$ Wedding ownership | `{ name, primary_contact_name, phone, expected_party_size, notes }` | `200 { id, ... }` | `400`, `404` |
 | `DELETE` | `/api/households/:id` | Household $\rightarrow$ Wedding ownership | None | `200 { deleted: true }` | `404` |
-| `GET` | `/api/functions/:id/invitations` | Function $\rightarrow$ Wedding ownership | None | `200 [ { household_id, invited: boolean } ]` | `404` |
-| `POST` | `/api/functions/:id/invitations` | Function $\rightarrow$ Wedding ownership | `{ household_ids: string[] }` | `200 { updated: N }` | `400`, `404` |
+| `POST` | `/api/households/:id/regenerate-token` | Household $\rightarrow$ Wedding ownership | None | `200 { id, inviteToken }` | `404` (revokes old token, issues new 128-bit token) |
+| `GET` | `/api/functions/:id/invitations` | Function $\rightarrow$ Wedding ownership | None | `200 [ { id, name, primaryContactName, phone, expectedPartySize, invited, rsvpStatus, partySize } ]` | `404` |
+| `POST` | `/api/functions/:id/invitations` | Function $\rightarrow$ Wedding ownership | `{ add?: string[], remove?: string[], householdIds?: string[] }` (capped at 500) | `200 { updated: N, added: N, removed: N }` | `400` blocked if active RSVP without reset / mode conflict, `404` |
+| `POST` | `/api/functions/:id/rsvps/:householdId/reset` | Function $\rightarrow$ Wedding ownership | None | `200 { success: true }` (clears active RSVP, enables unassigning) | `404` cross-planner / cross-wedding |
 
 #### Headcount, Export & Check-In Endpoints
 | Method | Endpoint | Auth Check | Request Body | Success Response | Error Cases |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/functions/:id/headcount` | Function $\rightarrow$ Wedding ownership | Query: `?maybePct=50&staleDays=14` | `200 { invited_count, confirmed_headcount, declined_count, maybe_count, no_response_count, veg_count, nonveg_count, planning_estimate, stale_count, formula }` | `404` |
-| `GET` | `/api/functions/:id/export-csv` | Function $\rightarrow$ Wedding ownership | None | `200 text/csv` (Content-Disposition: attachment) | `404` |
-| `GET` | `/api/functions/:id/checkin` | Function $\rightarrow$ Wedding ownership | None | `200 [ { household_id, household_name, party_size, checked_in, actual_party_size } ]` | `404` |
-| `POST` | `/api/functions/:id/checkin/:householdId` | Function $\rightarrow$ Wedding ownership | `{ checked_in: boolean, actual_party_size?: number }` | `200 { success: true }` | `400`, `404` |
+| `GET` | `/api/functions/:id/export-csv` | Function $\rightarrow$ Wedding ownership | None | `200 text/csv` (Content-Disposition: attachment, `=+-@` neutralized) | `404` |
+| `GET` | `/api/functions/:id/checkins` | Function $\rightarrow$ Wedding ownership | None | `200 [ { id, function_id, household_id, guest_name, actual_party_size, is_walkin, checked_in_at } ]` | `404` |
+| `POST` | `/api/functions/:id/checkins` | Function $\rightarrow$ Wedding ownership | `{ household_id?: string, guest_name?: string, actual_party_size: number, is_walkin?: boolean, notes?: string }` | `201 { id, ... }` | `400`, `404` |
 
-#### Public Guest RSVP Endpoints
+#### Public Guest RSVP Endpoints (Zero PII, Dual Rate Limited)
 | Method | Endpoint | Auth Check | Request Body | Success Response | Error Cases |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/rsvp/:token` | Token Scoped (Rate Limited) | None | `200 { household: { name, primary_contact_name }, functions: [ { id, name, date_time, venue, rsvp: { status, party_size, veg_count, nonveg_count, dietary_notes } } ] }` | `404` invalid token |
-| `POST` | `/api/rsvp/:token` | Token Scoped (Rate Limited) | `{ rsvps: [ { function_id, status, party_size, veg_count, nonveg_count, dietary_notes } ] }` | `200 { success: true, updated_at }` | `400` dietary sum mismatch / invalid status, `404` token or function invalid |
+| `GET` | `/api/rsvp/:token` | Capability Token (Rate Limited) | None | `200 { household: { name, expectedPartySize }, wedding: { title, coupleNames }, functions: [ { id, name, dateTime, venue, rsvpStatus, partySize, vegCount, nonvegCount, dietaryNotes, respondedAt } ] }` | `404` uniform on invalid/unknown token |
+| `POST` | `/api/rsvp/:token` | Capability Token (Rate Limited) | `{ responses: [ { functionId, status, partySize, vegCount, nonvegCount, dietaryNotes } ] }` | `200 { success: true, submittedCount }` | `400` dietary sum mismatch / uninvited function / duplicate, `404` token invalid |
 
 ---
 

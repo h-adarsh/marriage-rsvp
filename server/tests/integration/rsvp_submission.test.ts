@@ -221,6 +221,41 @@ describe('Task T2.5 Integration Tests: Public RSVP Submission API (POST /api/rsv
     expect((logs[0].newValues as any)?.partySize).toBe(4);
   });
 
+  it('updates respondedAt timestamp in database even when re-confirming identical RSVP answers', async () => {
+    // 1. Fetch initial respondedAt
+    const [initial] = await db
+      .select({ respondedAt: rsvps.respondedAt })
+      .from(rsvps)
+      .where(and(eq(rsvps.householdId, household1Id), eq(rsvps.functionId, function1Id)));
+
+    expect(initial).toBeDefined();
+
+    // Small delay to ensure timestamp difference in MySQL second resolution
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    // 2. Re-submit the exact same values
+    const res = await request(app)
+      .post(`/api/rsvp/${token1}`)
+      .send({
+        functionId: function1Id,
+        status: 'yes',
+        partySize: 4,
+        vegCount: 3,
+        nonvegCount: 1,
+        dietaryNotes: 'Updated: plus one baby chair',
+      });
+
+    expect(res.status).toBe(200);
+
+    // 3. Fetch updated respondedAt
+    const [updated] = await db
+      .select({ respondedAt: rsvps.respondedAt })
+      .from(rsvps)
+      .where(and(eq(rsvps.householdId, household1Id), eq(rsvps.functionId, function1Id)));
+
+    expect(new Date(updated.respondedAt).getTime()).toBeGreaterThan(new Date(initial.respondedAt).getTime());
+  });
+
   it('rejects RSVP submission for a function the household was NOT invited to', async () => {
     const uninvitedPayload = {
       functionId: function3Id, // Not invited

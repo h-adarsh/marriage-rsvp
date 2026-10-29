@@ -188,12 +188,6 @@ export const GuestRsvpPage: React.FC = () => {
             `In "${fn.name}", Vegetarian (${resp.vegCount}) + Non-Vegetarian (${resp.nonvegCount}) must equal total attending guests (${resp.partySize})`
           );
         }
-      } else if (resp.status === 'maybe') {
-        if (resp.partySize > 0 && resp.vegCount + resp.nonvegCount !== resp.partySize) {
-          errors.push(
-            `In "${fn.name}", estimated meals (${resp.vegCount + resp.nonvegCount}) must equal estimated guests (${resp.partySize})`
-          );
-        }
       }
     });
 
@@ -760,48 +754,15 @@ export const GuestRsvpPage: React.FC = () => {
                           inputMode="numeric"
                           value={resp.partySize}
                           onChange={(e) =>
-                            handlePartySizeChange(fn.id, parseInt(e.target.value, 10) || 0)
+                            handleUpdate(fn.id, {
+                              partySize: Math.max(0, Math.min(50, parseInt(e.target.value, 10) || 0)),
+                              vegCount: 0,
+                              nonvegCount: 0,
+                            })
                           }
                           className="w-24 h-10 text-center font-bold text-base rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                         />
                       </div>
-
-                      {resp.partySize > 0 && (
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                              Estimated Veg
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={resp.vegCount}
-                              onChange={(e) =>
-                                handleUpdate(fn.id, {
-                                  vegCount: Math.max(0, parseInt(e.target.value, 10) || 0),
-                                })
-                              }
-                              className="w-full h-9 text-center font-bold text-sm rounded-xl border border-slate-200 bg-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                              Estimated Non-Veg
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={resp.nonvegCount}
-                              onChange={(e) =>
-                                handleUpdate(fn.id, {
-                                  nonvegCount: Math.max(0, parseInt(e.target.value, 10) || 0),
-                                })
-                              }
-                              className="w-full h-9 text-center font-bold text-sm rounded-xl border border-slate-200 bg-white"
-                            />
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 

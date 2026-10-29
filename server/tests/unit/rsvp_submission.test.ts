@@ -137,26 +137,15 @@ describe('Task T2.5 Unit Tests: RSVP Submission Validation Schema', () => {
       expect(rsvpItemSchema.safeParse(tentative).success).toBe(true);
     });
 
-    it('accepts maybe RSVP with estimated party size matching veg + nonveg', () => {
+    it('accepts maybe RSVP with estimated headcount without requiring meal breakdown', () => {
       const tentative = {
         functionId,
         status: 'maybe',
         partySize: 3,
-        vegCount: 2,
-        nonvegCount: 1,
+        vegCount: 0,
+        nonvegCount: 0,
       };
       expect(rsvpItemSchema.safeParse(tentative).success).toBe(true);
-    });
-
-    it('rejects maybe RSVP with estimated party size that does not match veg + nonveg', () => {
-      const tentative = {
-        functionId,
-        status: 'maybe',
-        partySize: 3,
-        vegCount: 1,
-        nonvegCount: 1,
-      };
-      expect(rsvpItemSchema.safeParse(tentative).success).toBe(false);
     });
   });
 
