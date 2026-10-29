@@ -32,7 +32,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/server/package*.json ./server/
 COPY --from=builder /app/server/dist ./server/dist
-COPY --from=builder /app/server/src/db/migrations ./server/src/db/migrations
+COPY --from=builder /app/server/src/db/migrations ./server/dist/db/migrations
 COPY --from=builder /app/client/dist ./client/dist
 
 # Run container as non-root user for security
@@ -40,4 +40,4 @@ USER node
 
 EXPOSE 5001
 
-CMD ["sh", "-c", "npm run db:migrate --workspace=server && node server/dist/index.js"]
+CMD ["sh", "-c", "node server/dist/db/migrate.js && node server/dist/index.js"]

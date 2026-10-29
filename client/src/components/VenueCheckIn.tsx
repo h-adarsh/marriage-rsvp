@@ -18,6 +18,7 @@ import {
   Sparkles,
   X,
   FileText,
+  RefreshCw,
 } from 'lucide-react';
 import { WeddingFunction } from '../types/wedding';
 import {
@@ -102,6 +103,19 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
       loadOverview(selectedFunctionId);
     }
   }, [selectedFunctionId, loadOverview]);
+
+  // Auto-polling for multi-device live sync across gate volunteers (every 15s)
+  useEffect(() => {
+    if (!selectedFunctionId) return;
+
+    const interval = setInterval(() => {
+      getFunctionCheckinOverviewApi(selectedFunctionId)
+        .then((data) => setOverview(data))
+        .catch((err) => console.warn('[checkin] Background poll error:', err));
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [selectedFunctionId]);
 
   // Keep selectedFunctionId valid when functions array changes
   useEffect(() => {
@@ -423,8 +437,17 @@ export const VenueCheckIn: React.FC<VenueCheckInProps> = ({
           )}
         </div>
 
-        {/* Action Buttons: Add Walk-In */}
+        {/* Action Buttons: Refresh & Add Walk-In */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => loadOverview(selectedFunctionId)}
+            disabled={isLoading}
+            className="p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-xs shadow-sm transition-all min-h-[48px] min-w-[48px] flex items-center justify-center"
+            title="Refresh check-in overview"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-rose-600' : 'text-slate-500'}`} />
+          </button>
+
           <button
             onClick={openWalkinModal}
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/15 transition-all min-h-[48px]"

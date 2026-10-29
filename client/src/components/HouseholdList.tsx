@@ -12,6 +12,7 @@ import {
   Plus,
   Sparkles,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
 
 interface HouseholdListProps {
@@ -57,6 +58,19 @@ export const HouseholdList: React.FC<HouseholdListProps> = ({
     setTimeout(() => {
       setCopiedToken(null);
     }, 2000);
+  };
+
+  const handleWhatsAppShare = (household: Household) => {
+    const origin = window.location.origin;
+    const url = `${origin}/rsvp/${household.inviteToken}`;
+    const message = `Namaste ${household.name}! You are cordially invited to our wedding celebrations. Please confirm your attendance and meal preferences using your private RSVP link:\n\n${url}`;
+
+    const cleanPhone = household.phone ? household.phone.replace(/[^0-9]/g, '') : '';
+    const whatsappUrl = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleRegenerateToken = async (household: Household) => {
@@ -238,6 +252,13 @@ export const HouseholdList: React.FC<HouseholdListProps> = ({
                                 <span>Copy Link</span>
                               </>
                             )}
+                          </button>
+                          <button
+                            onClick={() => handleWhatsAppShare(household)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200"
+                            title="Share invite link via WhatsApp"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleRegenerateToken(household)}

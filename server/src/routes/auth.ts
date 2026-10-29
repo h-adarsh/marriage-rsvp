@@ -29,7 +29,7 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-// Dummy hash used for constant-time comparison when email is not found
+// Dummy hash used to run Argon2 verification when email is not found to prevent timing-based user enumeration
 const DUMMY_HASH = '$argon2id$v=19$m=65536,t=3,p=1$c29tZXNhbHQ$RdescudvJCsgqlfreSaAcw';
 
 /**
