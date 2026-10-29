@@ -326,6 +326,7 @@ export const GuestRsvpPage: React.FC = () => {
                 const formattedTime = dateObj.toLocaleTimeString(undefined, {
                   hour: 'numeric',
                   minute: '2-digit',
+                  hour12: true,
                 });
 
                 return (
@@ -490,6 +491,7 @@ export const GuestRsvpPage: React.FC = () => {
               const formattedTime = dateObj.toLocaleTimeString(undefined, {
                 hour: 'numeric',
                 minute: '2-digit',
+                hour12: true,
               });
 
               const isMealMatch =

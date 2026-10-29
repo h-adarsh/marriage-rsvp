@@ -404,7 +404,7 @@ project/
 - **Mitigation**:
   1. Rate limiting on `/api/auth/login` (5 attempts per minute per IP).
   2. Password hashing with Argon2id introduces intentional computational cost.
-  3. Constant-time comparison ensures no timing attacks reveal email validity.
+  3. Dummy password hash verification on unknown emails ensures response timing does not reveal user account existence.
 
 ### 7.6 Privacy & Regulatory (DPDP Act Awareness)
 - Collect only minimal required guest data (primary name, phone, dietary preference).

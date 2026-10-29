@@ -15,6 +15,7 @@ import {
   Sparkles,
   Users,
   Calculator,
+  UserCheck,
 } from 'lucide-react';
 import { Wedding, WeddingFunction } from '../../types/wedding';
 import { Household } from '../../types/household';
@@ -32,8 +33,9 @@ import { CsvImportModal } from '../../components/CsvImportModal';
 import { FunctionInvitationsModal } from '../../components/FunctionInvitationsModal';
 import { HouseholdList } from '../../components/HouseholdList';
 import { HeadcountDashboard } from '../../components/HeadcountDashboard';
+import { VenueCheckIn } from '../../components/VenueCheckIn';
 
-type DashboardTab = 'headcount' | 'functions' | 'guests';
+type DashboardTab = 'headcount' | 'checkin' | 'functions' | 'guests';
 
 export const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
@@ -314,6 +316,18 @@ export const DashboardPage: React.FC = () => {
               </button>
 
               <button
+                onClick={() => setActiveTab('checkin')}
+                className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
+                  activeTab === 'checkin'
+                    ? 'border-rose-600 text-rose-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>Venue Check-In</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('functions')}
                 className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
                   activeTab === 'functions'
@@ -341,6 +355,14 @@ export const DashboardPage: React.FC = () => {
             {/* Tab: Headcount Dashboard View */}
             {activeTab === 'headcount' && (
               <HeadcountDashboard
+                functions={functions}
+                onNavigateToFunctions={() => setActiveTab('functions')}
+              />
+            )}
+
+            {/* Tab: Venue Check-In View */}
+            {activeTab === 'checkin' && (
+              <VenueCheckIn
                 functions={functions}
                 onNavigateToFunctions={() => setActiveTab('functions')}
               />

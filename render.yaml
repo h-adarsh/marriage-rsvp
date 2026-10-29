@@ -24,3 +24,4 @@ databases:
     plan: free
     databaseName: wedding_rsvp
     user: wedding_user
+

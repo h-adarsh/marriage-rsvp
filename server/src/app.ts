@@ -31,6 +31,19 @@ app.use(cors({
   credentials: true,
 }));
 
+// Security response headers (OWASP best practices)
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '0');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self';"
+  );
+  next();
+});
 
 app.use(cookieParser());
 app.use(express.json({ limit: '100kb' }));
@@ -57,7 +70,7 @@ app.use('/api/rsvp', rsvpRouter);
 
 // In production, serve the compiled Vite SPA static files and fallback to index.html for client routing
 if (process.env.NODE_ENV === 'production') {
-  const clientDistPath = path.resolve(__dirname, '../../../client/dist');
+  const clientDistPath = path.resolve(__dirname, '../../client/dist');
   app.use(express.static(clientDistPath));
   app.get('*', (req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/api')) {
