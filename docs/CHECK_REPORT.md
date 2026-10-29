@@ -380,7 +380,39 @@ Both `tests/unit/headcount.test.ts`, `tests/integration/headcount.test.ts`, and 
 
 ## 4. Verdict (Milestone 3 Tasks T3.1–T3.4)
 **Tasks T3.1, T3.2, T3.3, and T3.4 COMPLETE & VERIFIED.**  
-Next task in sequence: **T3.6 & T3.7 (Caterer CSV Export with formula injection neutralization)**.
+
+---
+
+# Tasks T3.6 & T3.7: Caterer CSV Export Engine & Dashboard Download Trigger
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run typecheck --workspace=client` | **PASS** | 0 TypeScript errors. |
+| `npm run build --workspace=server` | **PASS** | `tsc` compiled server with 0 errors. |
+| `npm run build --workspace=client` | **PASS** | `vite build` completed in 1.67s with 0 errors. |
+| `npm test` | **PASS** | **23 test files, 168 passing tests (100% pass rate)**. |
+| Live API Check (`GET /api/functions/:id/export-csv?maybePct=50`) | **PASS** | Returned HTTP 200 `text/csv; charset=utf-8` with attachment filename `ananya_kabir_s_wedding_sangeet_cocktail_caterer_2026-10-29.csv`, UTF-8 BOM, metadata header, summary block, and sanitized guest table. |
+
+---
+
+## 2. Acceptance Criteria & Implementation Matrix
+
+| Requirement / Acceptance Criterion | Implementation Details | Verification Evidence |
+| :--- | :--- | :--- |
+| **Cleanly Formatted Caterer CSV Structure** | Assembles header metadata (Wedding Title, Couple Names, Function Name, Date/Time, Venue, Export Timestamp), summary headcount block (Confirmed, Veg, Non-Veg, Maybe, Estimate), and detailed guest table. | Unit test in `csv_export.test.ts` & integration test in `csv_export.test.ts`. |
+| **Formula Injection Defense (CWE-1236)** | `sanitizeCsvField` scans all output fields. If a field begins with `=`, `+`, `-`, `@`, `\t`, or `\r`, prepends `'` to force Excel, Google Sheets, and Calc to treat the cell as plain literal text. | Unit tests verifying malicious inputs (`=cmd|' /C calc'!A0`, `+severe allergy`, `@table 4`, `-negative count`). |
+| **RFC 4180 Compliance & UTF-8 BOM** | Prepend `\uFEFF` UTF-8 Byte Order Mark for Excel Unicode support (Hindi/Devanagari names). Escapes inner quotes as `""` and wraps fields containing commas, quotes, or newlines in quotes. | Verified in `csv_export.test.ts`. |
+| **Safe Attachment Naming** | `buildExportFilename` produces lowercased, underscored alphanumeric filenames (`<wedding>_<function>_caterer_<date>.csv`) stripping unsafe characters. | Verified in unit & integration tests. |
+| **Multi-Tenant Protection** | Endpoint verifies that the function belongs to a wedding owned by the authenticated planner (`getOwnedFunction`). Returns uniform 404 for unauthorized planners or invalid function IDs. | Integration tests in `csv_export.test.ts` blocking Planner B. |
+| **Dashboard Download Trigger (T3.7)** | Added green "Export Caterer CSV" button with `Download` icon on `HeadcountDashboard.tsx`. Calls `exportCatererCsvApi`, extracts filename from `Content-Disposition`, creates blob object URL, triggers browser download, and cleans up URL. | Verified in `HeadcountDashboard.tsx` & typecheck. |
+
+---
+
+## 3. Verdict (Tasks T3.6 & T3.7)
+**Tasks T3.6 and T3.7 COMPLETE & ACCEPTED.**  
+Next task in sequence: **T3.5 (Stale RSVP indicators & filters)** or **Milestone 4 (Task T4.1 Venue Check-In Backend)**.
 
 
 

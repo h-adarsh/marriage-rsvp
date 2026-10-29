@@ -7,6 +7,7 @@ import { functions, households, householdFunctions, rsvps, auditLog } from '../d
 import { requireAuth } from '../middleware/auth';
 import { getOwnedFunction } from '../middleware/tenant';
 import { getFunctionHeadcount } from '../services/headcount';
+import { generateCatererCsvData } from '../services/csvExport';
 
 export const functionsRouter = Router();
 
@@ -462,6 +463,35 @@ functionsRouter.get('/:id/headcount', async (req: Request, res: Response): Promi
   } catch (error) {
     console.error('[functions] Get headcount error:', error);
     res.status(500).json({ error: 'Failed to calculate headcount metrics' });
+  }
+});
+
+/**
+ * GET /api/functions/:id/export-csv - Download sanitized caterer CSV with headcount and dietary breakdown
+ * Enforces CWE-1236 formula injection neutralization (=, +, -, @)
+ */
+functionsRouter.get('/:id/export-csv', async (req: Request, res: Response): Promise<void> => {
+  const functionId = req.params.id;
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    const maybePct = req.query.maybePct !== undefined ? Number(req.query.maybePct) : undefined;
+    const { filename, csvContent } = await generateCatererCsvData(functionId, { maybePct });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+
+    res.send(csvContent);
+  } catch (error) {
+    console.error('[functions] Export CSV error:', error);
+    res.status(500).json({ error: 'Failed to generate caterer CSV export' });
   }
 });
 

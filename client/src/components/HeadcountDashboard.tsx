@@ -7,10 +7,12 @@ import {
   AlertTriangle,
   ChevronRight,
   Info,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { WeddingFunction } from '../types/wedding';
 import { HeadcountData } from '../types/headcount';
-import { getFunctionHeadcountApi } from '../api/headcount';
+import { getFunctionHeadcountApi, exportCatererCsvApi } from '../api/headcount';
 
 interface HeadcountDashboardProps {
   functions: WeddingFunction[];
@@ -27,6 +29,7 @@ export const HeadcountDashboard: React.FC<HeadcountDashboardProps> = ({
   const [headcount, setHeadcount] = useState<HeadcountData | null>(null);
   const [maybePct, setMaybePct] = useState<number>(50);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +68,28 @@ export const HeadcountDashboard: React.FC<HeadcountDashboardProps> = ({
   const handleRefresh = () => {
     if (selectedFunctionId) {
       loadHeadcount(selectedFunctionId, maybePct);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    if (!selectedFunctionId) return;
+    try {
+      setIsExporting(true);
+      setError(null);
+      const { blob, filename } = await exportCatererCsvApi(selectedFunctionId, maybePct);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export caterer CSV:', err);
+      setError(err instanceof Error ? err.message : 'Failed to export caterer CSV');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -131,6 +156,21 @@ export const HeadcountDashboard: React.FC<HeadcountDashboardProps> = ({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-rose-600' : ''}`} />
             <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting || isLoading || !selectedFunctionId}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm transition-all disabled:opacity-50"
+            title="Download sanitized caterer spreadsheet with dietary details"
+          >
+            {isExporting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">Export Caterer CSV</span>
+            <span className="sm:hidden">Export</span>
           </button>
         </div>
       </div>

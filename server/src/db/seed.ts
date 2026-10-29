@@ -38,8 +38,8 @@ async function seed() {
     plannerId,
     title: "Ananya & Kabir's Wedding",
     coupleNames: 'Ananya Sharma & Kabir Malhotra',
-    startDate: '2026-12-10',
-    endDate: '2026-12-12',
+    startDate: new Date('2026-12-10'),
+    endDate: new Date('2026-12-12'),
   });
   console.log("[seed] Created wedding: Ananya & Kabir's Wedding");
 

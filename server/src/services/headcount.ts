@@ -162,3 +162,4 @@ export async function getFunctionHeadcount(
 
   return calculateHeadcountFromRows(functionId, rows as any, options);
 }
+

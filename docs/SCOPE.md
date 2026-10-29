@@ -105,9 +105,9 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 > **As a planner**, I can export headcount summaries and detailed dietary lists to CSV so that I can provide them to catering vendors.
 
 **Acceptance Criteria:**
-- [ ] Generates a cleanly formatted CSV including export timestamp, function name, summary headcount (confirmed, veg, non-veg), and detailed guest breakdown.
-- [ ] CSV formula injection defense neutralizes cells starting with `=`, `+`, `-`, or `@` by prepending a quote (`'`).
-- [ ] Filename contains the wedding name, function name, and export timestamp.
+- [x] Generates a cleanly formatted CSV including export timestamp, function name, summary headcount (confirmed, veg, non-veg), and detailed guest breakdown.
+- [x] CSV formula injection defense neutralizes cells starting with `=`, `+`, `-`, or `@` by prepending a quote (`'`).
+- [x] Filename contains the wedding name, function name, and export timestamp.
 
 ---
 
@@ -159,8 +159,8 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 - [x] **T3.3**: Planner Dashboard UI (Function switcher, summary cards for Confirmed, Declined, Maybe, No Response, Veg/Non-Veg). *[2.0h]*
 - [x] **T3.4**: Planning estimate interactive controls UI (Adjustable Maybe % slider, explicit formula explanation banner). *[1.5h]*
 - **T3.5**: Stale RSVP indicators & filters on dashboard and guest lists. *[1.5h]*
-- **T3.6**: Caterer CSV export backend (Stream/build CSV, formatted caterer header, formula injection neutralization for `= + - @`). *[2.0h]*
-- **T3.7**: Caterer CSV export button & download trigger in dashboard. *[1.0h]*
+- [x] **T3.6**: Caterer CSV export backend (Stream/build CSV, formatted caterer header, formula injection neutralization for `= + - @`). *[2.0h]*
+- [x] **T3.7**: Caterer CSV export button & download trigger in dashboard. *[1.0h]*
 *M3 Subtotal: 11.5 hours*
 
 ---

@@ -59,16 +59,16 @@ describe('Task T3.1 & T3.2 Integration Tests: Headcount Calculation API (GET /ap
         plannerId: plannerAId,
         title: 'Wedding A (Headcount Test)',
         coupleNames: 'Rohan & Ananya',
-        startDate: '2026-12-10',
-        endDate: '2026-12-12',
+        startDate: new Date('2026-12-10'),
+        endDate: new Date('2026-12-12'),
       },
       {
         id: weddingBId,
         plannerId: plannerBId,
         title: 'Wedding B (Isolation Test)',
         coupleNames: 'Sameer & Pooja',
-        startDate: '2026-12-12',
-        endDate: '2026-12-14',
+        startDate: new Date('2026-12-12'),
+        endDate: new Date('2026-12-14'),
       },
     ]);
 
