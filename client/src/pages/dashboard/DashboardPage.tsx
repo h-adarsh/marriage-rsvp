@@ -14,6 +14,7 @@ import {
   Loader2,
   Sparkles,
   Users,
+  Calculator,
 } from 'lucide-react';
 import { Wedding, WeddingFunction } from '../../types/wedding';
 import { Household } from '../../types/household';
@@ -30,8 +31,9 @@ import { CreateHouseholdModal } from '../../components/CreateHouseholdModal';
 import { CsvImportModal } from '../../components/CsvImportModal';
 import { FunctionInvitationsModal } from '../../components/FunctionInvitationsModal';
 import { HouseholdList } from '../../components/HouseholdList';
+import { HeadcountDashboard } from '../../components/HeadcountDashboard';
 
-type DashboardTab = 'functions' | 'guests';
+type DashboardTab = 'headcount' | 'functions' | 'guests';
 
 export const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
@@ -39,7 +41,7 @@ export const DashboardPage: React.FC = () => {
 
   const [weddings, setWeddings] = useState<Wedding[]>([]);
   const [activeWedding, setActiveWedding] = useState<Wedding | null>(null);
-  const [activeTab, setActiveTab] = useState<DashboardTab>('functions');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('headcount');
 
   const [functions, setFunctions] = useState<WeddingFunction[]>([]);
   const [households, setHouseholds] = useState<Household[]>([]);
@@ -298,10 +300,22 @@ export const DashboardPage: React.FC = () => {
             )}
 
             {/* Dashboard Navigation Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-200 mb-6">
+            <div className="flex items-center gap-2 border-b border-slate-200 mb-6 overflow-x-auto scrollbar-none">
+              <button
+                onClick={() => setActiveTab('headcount')}
+                className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
+                  activeTab === 'headcount'
+                    ? 'border-rose-600 text-rose-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Calculator className="w-4 h-4" />
+                <span>Headcount & Catering</span>
+              </button>
+
               <button
                 onClick={() => setActiveTab('functions')}
-                className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all ${
+                className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
                   activeTab === 'functions'
                     ? 'border-rose-600 text-rose-600'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -313,7 +327,7 @@ export const DashboardPage: React.FC = () => {
 
               <button
                 onClick={() => setActiveTab('guests')}
-                className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all ${
+                className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
                   activeTab === 'guests'
                     ? 'border-rose-600 text-rose-600'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -324,7 +338,15 @@ export const DashboardPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Tab 1: Functions View */}
+            {/* Tab: Headcount Dashboard View */}
+            {activeTab === 'headcount' && (
+              <HeadcountDashboard
+                functions={functions}
+                onNavigateToFunctions={() => setActiveTab('functions')}
+              />
+            )}
+
+            {/* Tab: Functions View */}
             {activeTab === 'functions' && (
               <div>
                 <div className="flex items-center justify-between mb-4">

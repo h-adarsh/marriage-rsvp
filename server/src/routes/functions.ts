@@ -6,6 +6,7 @@ import { db } from '../db';
 import { functions, households, householdFunctions, rsvps, auditLog } from '../db/schema';
 import { requireAuth } from '../middleware/auth';
 import { getOwnedFunction } from '../middleware/tenant';
+import { getFunctionHeadcount } from '../services/headcount';
 
 export const functionsRouter = Router();
 
@@ -432,6 +433,35 @@ functionsRouter.post('/:id/rsvps/:householdId/reset', async (req: Request, res: 
   } catch (error) {
     console.error('[functions] Reset RSVP error:', error);
     res.status(500).json({ error: 'Failed to reset RSVP' });
+  }
+});
+
+/**
+ * GET /api/functions/:id/headcount - Headcount metrics & planning estimate
+ */
+functionsRouter.get('/:id/headcount', async (req: Request, res: Response): Promise<void> => {
+  const functionId = req.params.id;
+
+  try {
+    const owned = await getOwnedFunction(functionId, req.user!.id);
+    if (!owned) {
+      res.status(404).json({ error: 'Function not found' });
+      return;
+    }
+
+    const maybePct = req.query.maybePct !== undefined ? Number(req.query.maybePct) : undefined;
+    const staleDays = req.query.staleDays !== undefined ? Number(req.query.staleDays) : undefined;
+
+    const result = await getFunctionHeadcount(functionId, { maybePct, staleDays });
+
+    res.json({
+      ...result,
+      functionName: owned.function.name,
+      weddingId: owned.wedding.id,
+    });
+  } catch (error) {
+    console.error('[functions] Get headcount error:', error);
+    res.status(500).json({ error: 'Failed to calculate headcount metrics' });
   }
 });
 

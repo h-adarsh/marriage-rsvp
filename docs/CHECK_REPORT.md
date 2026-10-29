@@ -314,9 +314,73 @@ Next task in sequence: **T2.7 & T2.8 (Mobile-first Guest RSVP UI & submission fl
 
 ---
 
-## 3. Verdict
+## 3. Verdict (Milestone 2)
 **Tasks T2.5, T2.7, and T2.8 COMPLETE & ACCEPTED.**  
-Next task in sequence: **T2.4 (WhatsApp share link generator on household cards)** or **Milestone 3 Dashboard**.
+
+---
+
+# Tasks T3.1–T3.4: Headcount Calculation Engine, Planning Estimate & Planner Dashboard UI
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run typecheck --workspace=client` | **PASS** | 0 TypeScript errors. |
+| `npm run build --workspace=server` | **PASS** | `tsc` compiled server with 0 errors. |
+| `npm run build --workspace=client` | **PASS** | `vite build` completed in 1.58s with 0 errors. |
+| `npm test` | **PASS** | **21 test files, 156 passing tests (100%)**. |
+| `npm run db:seed` | **PASS** | Seeded hand-checked wedding with 10 households (4 yes, 2 maybe, 1 no, 3 pending). |
+| Live Dashboard Headcount API (`GET /api/functions/:id/headcount?maybePct=50`) | **PASS** | Returned exact hand-checked values: Confirmed 14 (8 Veg, 6 Non-Veg), Maybe 4, Declined 3, Pending 6, Estimate 16. |
+
+---
+
+## 2. Hand-Checked Arithmetic Verification
+
+We verified the calculation engine against a hand-checked test fixture of 10 households invited to Sangeet & Cocktail:
+
+| Household | Size | Status | Veg | Non-Veg | Category |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Household 1 | 4 | `yes` | 3 | 1 | Confirmed Headcount = 4 |
+| Household 2 | 3 | `yes` | 2 | 1 | Confirmed Headcount = 3 |
+| Household 3 | 2 | `yes` | 2 | 0 | Confirmed Headcount = 2 (stale > 14 days) |
+| Household 4 | 5 | `yes` | 1 | 4 | Confirmed Headcount = 5 |
+| Household 5 | 2 | `maybe` | 0 | 0 | Tentative Headcount = 2 |
+| Household 6 | 2 | `maybe` | 0 | 0 | Tentative Headcount = 2 |
+| Household 7 | 3 | `no` | 0 | 0 | Declined Headcount = 3 |
+| Household 8 | 2 | None | - | - | Pending Headcount = 2 |
+| Household 9 | 1 | None | - | - | Pending Headcount = 1 |
+| Household 10 | 3 | None | - | - | Pending Headcount = 3 |
+
+**Hand-Calculated Totals:**
+- Total Invited Households: 10
+- Total Invited Headcount: 27 people
+- Confirmed Headcount: $4 + 3 + 2 + 5 = 14$ guests (8 Veg, 6 Non-Veg)
+- Tentative (Maybe) Headcount: $2 + 2 = 4$ guests
+- Declined Headcount: $3$ guests
+- Pending (No Response) Headcount: $2 + 1 + 3 = 6$ guests
+- Planning Estimate with $P = 50\%$: $14 + \lfloor 0.50 \times 4 \rfloor = 16$ guests
+- Planning Estimate with $P = 25\%$: $14 + \lfloor 0.25 \times 4 \rfloor = 15$ guests
+- Planning Estimate with $P = 75\%$: $14 + \lfloor 0.75 \times 4 \rfloor = 17$ guests
+
+Both `tests/unit/headcount.test.ts`, `tests/integration/headcount.test.ts`, and the live server API responded with 100% agreement.
+
+---
+
+## 3. UI Implementation Details
+
+1. **"Live on Refresh" Wording**: Avoided misleading "real-time" claims. Header displays `Live on refresh • Updated just now` with a manual refresh button.
+2. **Formula on Screen**: The Planning Estimate card displays the exact formula banner: `"Planning Estimate = Confirmed (14) + 50% of Maybe (4) = 16 guests"`.
+3. **Interactive Estimate Slider**: Planner can adjust $P\%$ ($0\%$ to $100\%$) with presets (0%, 25%, 50%, 75%, 100%) and instant visual buffer feedback.
+4. **Distinct Units**:
+   - Catering cards strictly use **People / Guests** (Confirmed, Veg/Non-Veg meals, Maybe, Declined, Estimate).
+   - Invitation logistics summary clearly uses **Households**.
+5. **Fresh Totals Verification**: Submitting a new guest RSVP immediately updates the dashboard upon refresh (proven in integration test `proves fresh totals: when a guest submits an RSVP, the headcount updates live on refresh`).
+
+---
+
+## 4. Verdict (Milestone 3 Tasks T3.1–T3.4)
+**Tasks T3.1, T3.2, T3.3, and T3.4 COMPLETE & VERIFIED.**  
+Next task in sequence: **T3.6 & T3.7 (Caterer CSV Export with formula injection neutralization)**.
 
 
 
