@@ -91,10 +91,12 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 > **As a planner**, I can view clear headcount totals and an adjustable planning estimate per function so that I have dependable numbers for catering.
 
 **Acceptance Criteria:**
-- [ ] Dashboard displays counts per function: Invited households, Confirmed headcount ($\sum \text{party\_size}$ where status = `yes`), Declined count, Maybe count, and No Response count.
+- [ ] Dashboard displays dual metrics per function:
+  - **Headcount breakdown (people for catering)**: Confirmed Headcount ($\sum \text{party\_size}$ where status = `yes`), Maybe Headcount ($\sum \text{party\_size}$ where status = `maybe`), Declined Headcount, and No-Response Headcount.
+  - **Household breakdown (invitation logistics)**: Invited households, Confirmed households, Declined households, Maybe households, and No-Response households.
 - [ ] Confirmed headcount strictly excludes "Maybe" and "No Response" entries.
 - [ ] Veg and Non-Veg totals are calculated exclusively from Confirmed guests.
-- [ ] Planning Estimate is calculated and displayed as: $\text{Confirmed} + (P\% \times \text{Maybe count})$, where $P$ is planner-adjustable (default 50%, with 0% of No Response). The exact formula and percentage are visible on screen.
+- [ ] Planning Estimate is calculated and displayed in headcount (people): $\text{Confirmed Headcount} + \lfloor \frac{P}{100} \times \text{Maybe Headcount} \rfloor$, where $P$ is planner-adjustable (default 50%, with 0% of No Response). The exact formula and percentage are visible on screen.
 - [ ] RSVPs not updated for $N$ days (configurable, default 14) are marked with a "Stale" indicator badge.
 
 ---
@@ -191,6 +193,7 @@ As strictly defined in `PROJECT_CONTEXT.md`, the following are excluded from Pha
 - Multi-user planner teams, permissions, or role-based access control.
 - Microservices, distributed message queues, Kafka, RabbitMQ, or Kubernetes.
 - Per-guest individual dietary breakdown (kept at household aggregate level for MVP).
+- RSVP deadline enforcement / locking responses after a planner deadline (guests can update responses; response locking is planned post-MVP).
 
 ---
 

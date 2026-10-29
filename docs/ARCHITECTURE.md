@@ -253,34 +253,38 @@ Tracks changes to sensitive invitation and RSVP data for accountability.
 
 Per Section 6 of `PROJECT_CONTEXT.md`, headcount formulas must adhere to mathematical precision:
 
-1. **Invited Count ($I_F$)**:
+1. **Invited Households ($I_F$)**:
    $$I_F = \text{COUNT}(\text{household\_functions WHERE function\_id} = F)$$
 
-2. **Confirmed Headcount ($C_F$)**:
-   $$C_F = \sum_{\substack{\text{status} = \text{'yes'} \\ \text{function\_id} = F}} \text{party\_size}$$
+2. **Headcount Metrics (Unit: People / Guests — Used for Catering)**:
+   - **Confirmed Headcount ($C_F^{\text{headcount}}$)**:
+     $$C_F^{\text{headcount}} = \sum_{\substack{\text{status} = \text{'yes'} \\ \text{function\_id} = F}} \text{party\_size}$$
+   - **Maybe Headcount ($M_F^{\text{headcount}}$)**:
+     $$M_F^{\text{headcount}} = \sum_{\substack{\text{status} = \text{'maybe'} \\ \text{function\_id} = F}} (\text{IF}(\text{party\_size} > 0, \text{party\_size}, \text{households.expected\_party\_size}))$$
+   - **Declined Headcount ($D_F^{\text{headcount}}$)**:
+     $$D_F^{\text{headcount}} = \sum_{\substack{\text{status} = \text{'no'} \\ \text{function\_id} = F}} \text{households.expected\_party\_size}$$
+   - **No Response Headcount ($NR_F^{\text{headcount}}$)**:
+     $$NR_F^{\text{headcount}} = \sum_{\substack{\text{unresponded} \\ \text{function\_id} = F}} \text{households.expected\_party\_size}$$
 
-3. **Declined Count ($D_F$)**:
-   $$D_F = \text{COUNT}(\text{rsvps WHERE function\_id} = F \text{ AND status} = \text{'no'})$$
+3. **Household Metrics (Unit: Households / Invites — Used for Invitation Tracking)**:
+   - **Confirmed Households ($C_F^{\text{households}}$)**: $\text{COUNT}(\text{rsvps WHERE function\_id} = F \land \text{status} = \text{'yes'})$
+   - **Declined Households ($D_F^{\text{households}}$)**: $\text{COUNT}(\text{rsvps WHERE function\_id} = F \land \text{status} = \text{'no'})$
+   - **Maybe Households ($M_F^{\text{households}}$)**: $\text{COUNT}(\text{rsvps WHERE function\_id} = F \land \text{status} = \text{'maybe'})$
+   - **No Response Households ($NR_F^{\text{households}}$)**: $I_F - (C_F^{\text{households}} + D_F^{\text{households}} + M_F^{\text{households}})$
 
-4. **Maybe Count ($M_F$)**:
-   $$M_F = \text{COUNT}(\text{rsvps WHERE function\_id} = F \text{ AND status} = \text{'maybe'})$$
-
-5. **No Response Count ($NR_F$)**:
-   $$NR_F = I_F - (C_F^{\text{households}} + D_F + M_F)$$
-   *(Never add "Maybe" or "No response" into Confirmed Headcount).*
-
-6. **Dietary Totals (Confirmed Only)**:
+4. **Dietary Totals (Confirmed Only)**:
    $$\text{Veg Total} = \sum_{\substack{\text{status} = \text{'yes'} \\ \text{function\_id} = F}} \text{veg\_count}$$
    $$\text{Non-Veg Total} = \sum_{\substack{\text{status} = \text{'yes'} \\ \text{function\_id} = F}} \text{nonveg\_count}$$
    *Rule:* Enforce $\text{veg\_count} + \text{nonveg\_count} = \text{party\_size}$ on each 'yes' RSVP row.
 
-7. **Planning Estimate ($E_F$)**:
-   $$E_F = C_F + \left\lfloor \frac{P}{100} \times \left( \sum_{\substack{\text{status} = \text{'maybe'} \\ \text{function\_id} = F}} \max(\text{party\_size}, 1) \right) \right\rfloor$$
+5. **Planning Estimate ($E_F$) — Dimensional Consistency**:
+   Both terms represent **headcount (number of people)** to prevent mixing people and households:
+   $$E_F = C_F^{\text{headcount}} + \left\lfloor \frac{P}{100} \times M_F^{\text{headcount}} \right\rfloor$$
    - Default $P = 50\%$.
    - Planner can adjust $P \in [0, 100]\%$.
-   - The UI strictly displays the formula: `"Planning Estimate = Confirmed (X) + P% of Maybe (Y) = Z"`.
+   - The UI strictly displays the formula: `"Planning Estimate = Confirmed Headcount (X) + P% of Maybe Headcount (Y) = Z guests"`.
 
-8. **Stale RSVP Flag**:
+6. **Stale RSVP Flag**:
    $$\text{is\_stale} = (\text{status} \in \{\text{'yes'}, \text{'maybe'}\}) \land (\text{responded\_at} < \text{NOW}() - N \text{ days})$$
    - Default $N = 14$ days.
 

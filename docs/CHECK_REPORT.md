@@ -288,8 +288,8 @@ Next task in sequence: **T2.7 & T2.8 (Mobile-first Guest RSVP UI & submission fl
 | :--- | :--- | :--- |
 | `npm run typecheck` | **PASS** | 0 errors across `server` and `client` TypeScript configurations. |
 | `npm run lint` | **PASS** | 0 errors, 0 warnings across `server/src` and `client/src`. |
-| `npm run build` | **PASS** | Full production build (`tsc && vite build`) built in 1.70s with 0 errors. |
-| `npm test` | **PASS** | Server: 19 test files, 137 passing tests. Client: typecheck verified. |
+| `npm run build` | **PASS** | Full production build (`tsc && vite build`) built in 1.64s with 0 errors. |
+| `npm test` | **PASS** | Server: **19 test files, 140 passing tests** (+3 tests for 500-char notes limits). Client: `tsc --noEmit` verified. |
 | Live Capability URL Check | **PASS** | `GET /api/rsvp/:token` and `/rsvp/:token` respond with 200 OK for valid tokens, 404 for malformed/unknown tokens. |
 
 ---
@@ -300,17 +300,23 @@ Next task in sequence: **T2.7 & T2.8 (Mobile-first Guest RSVP UI & submission fl
 | :--- | :--- | :--- |
 | **Public Capability Route** | Added unauthenticated public route `<Route path="/rsvp/:token" element={<GuestRsvpPage />} />` in `App.tsx`. | Verified via HTTP GET on `localhost:5173/rsvp/<token>`. |
 | **Invited Functions Scoping** | Calls `getInvitationByToken(token)` which returns only the events assigned to this household in `household_functions`. | Card list renders only invited functions. |
+| **Zero-Function Safe State** | If household has 0 invited functions, displays friendly informational card explaining no events are assigned yet and hides the submit button. | Verified in `GuestRsvpPage.tsx` lines 457-466. |
 | **Attendance Selectors** | Touch-friendly cards for **Attending (Yes)**, **Decline (No)**, and **Tentative (Maybe)** with $\ge 48\text{px}$ touch targets. | Implemented in `GuestRsvpPage.tsx`. |
 | **Live Dietary Balance Validation** | Instant live client math check on `vegCount + nonvegCount === partySize`. Shows green indicator when balanced, warning badge when under/over allocated. | Form submit prevented if meal counts do not equal party size. |
+| **Server Validation Enforcement** | Server Zod schema enforces `partySize >= 1`, `vegCount + nonvegCount === partySize` on 'yes', and `dietaryNotes` max 500 characters. | 14 unit tests in `rsvp_submission.test.ts` and 10 integration tests passing. |
+| **Token Anti-Leak & Zero 3P Requests** | Added `<meta name="referrer" content="no-referrer" />` and `<meta name="robots" content="noindex, nofollow" />` to `index.html`. Removed all external Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`) to prevent referrer leaks to third parties; uses system UI fonts. | Verified in `client/index.html`. |
+| **Double-Submit Protection** | Added immediate guard `if (isSubmitting) return;` in `handleSubmit` and disabled button state during in-flight requests. | Verified in `GuestRsvpPage.tsx`. |
+| **Graceful Offline / Network Drop** | Wraps `fetch` in `client/src/api/rsvp.ts` to transform `TypeError: Failed to fetch` into friendly user guidance: "Network connection error. Please check your internet connection and try again." | Verified in `api/rsvp.ts`. |
 | **Return-to-Edit Detection** | Pre-populates previously saved RSVP responses when revisiting the link. Shows notification banner explaining answers can be changed. | Verified with seeded Kapoor Family data. |
 | **Instant Confirmation View** | On successful submission, displays celebration banner, comprehensive summary of responses per event, and an "Edit or Change Responses" button. | Implemented in `GuestRsvpPage.tsx`. |
-| **Error Handling** | Displays friendly error states for invalid/expired tokens (404), rate limit saturation (429), or missing field selections. | Verified in `GuestRsvpPage.tsx` and `rsvp.ts`. |
+| **Formula Disambiguation (People vs Households)** | Disambiguated catering headcount from invitation counts in `ARCHITECTURE.md` and `SCOPE.md`. Planning Estimate formula is strictly in people: $E_F = C_F^{\text{headcount}} + \lfloor \frac{P}{100} \times M_F^{\text{headcount}} \rfloor$. | Documented in `ARCHITECTURE.md` Section 4 and `SCOPE.md` Story 7. |
+| **RSVP Deadline Scope** | Clarified in `SCOPE.md` that post-deadline response locking is a post-MVP feature (guests can currently update responses). | Documented under `SCOPE.md` Section 5. |
 
 ---
 
 ## 3. Verdict
-**Tasks T2.7 & T2.8 COMPLETE & ACCEPTED.**  
-Next task in sequence: **T2.4 (WhatsApp share link generator on household cards)**.
+**Tasks T2.5, T2.7, and T2.8 COMPLETE & ACCEPTED.**  
+Next task in sequence: **T2.4 (WhatsApp share link generator on household cards)** or **Milestone 3 Dashboard**.
 
 
 
