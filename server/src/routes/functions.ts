@@ -260,7 +260,19 @@ functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Pr
     try {
       await db.transaction(async (tx) => {
         if (toUnassign.length > 0) {
-          // Check for existing active RSVPs within the transaction to prevent races
+          // Explicit row-level lock on assignments to prevent concurrency races
+          await tx
+            .select()
+            .from(householdFunctions)
+            .where(
+              and(
+                eq(householdFunctions.functionId, functionId),
+                inArray(householdFunctions.householdId, toUnassign)
+              )
+            )
+            .for('update');
+
+          // Check for existing active RSVPs with row-level lock to prevent races
           const repliedRsvps = await tx
             .select({ householdId: rsvps.householdId, status: rsvps.status })
             .from(rsvps)
@@ -269,7 +281,8 @@ functionsRouter.post('/:id/invitations', async (req: Request, res: Response): Pr
                 eq(rsvps.functionId, functionId),
                 inArray(rsvps.householdId, toUnassign)
               )
-            );
+            )
+            .for('update');
 
           const activeReplied = repliedRsvps.filter(
             (r) => r.status === 'yes' || r.status === 'maybe'
