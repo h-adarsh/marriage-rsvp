@@ -6,9 +6,11 @@ import {
   RefreshCw,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
   Info,
   Download,
   Loader2,
+  Phone,
 } from 'lucide-react';
 import { WeddingFunction } from '../types/wedding';
 import { HeadcountData } from '../types/headcount';
@@ -32,6 +34,7 @@ export const HeadcountDashboard: React.FC<HeadcountDashboardProps> = ({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
+  const [showStaleDrawer, setShowStaleDrawer] = useState<boolean>(false);
 
   // Sync selected function if functions list changes
   useEffect(() => {
@@ -181,16 +184,87 @@ export const HeadcountDashboard: React.FC<HeadcountDashboardProps> = ({
         </div>
       )}
 
-      {/* Stale RSVP Alert Banner */}
+      {/* Stale RSVP Alert Banner & Breakdown Drawer */}
       {headcount && headcount.staleCount > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-sm">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-xs">
-            <span className="font-bold">Attention: {headcount.staleCount} RSVP response(s) are older than {headcount.staleDays} days.</span>
-            <p className="text-amber-800/90 mt-0.5">
-              Guest attendance plans can shift closer to the date. Consider verifying with households who submitted early to confirm final headcounts.
-            </p>
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm overflow-hidden">
+          <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <span className="font-bold">
+                  Attention: {headcount.staleCount} RSVP response(s) are older than {headcount.staleDays} days.
+                </span>
+                <p className="text-amber-800/90 mt-0.5">
+                  Guest plans can shift over time. Consider verifying with early responders before finalizing caterer numbers.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowStaleDrawer(!showStaleDrawer)}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-200/70 hover:bg-amber-200 text-amber-900 text-xs font-bold transition-all self-start sm:self-auto shrink-0 flex items-center gap-1.5 border border-amber-300"
+            >
+              <span>{showStaleDrawer ? 'Hide Stale List' : `View Stale Responses (${headcount.staleCount})`}</span>
+              {showStaleDrawer ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </button>
           </div>
+
+          {showStaleDrawer && headcount.staleHouseholds && headcount.staleHouseholds.length > 0 && (
+            <div className="border-t border-amber-200/80 bg-white/80 p-4">
+              <div className="flex items-center justify-between mb-2.5">
+                <h5 className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                  Households Awaiting Re-Confirmation ({headcount.staleCount})
+                </h5>
+                <span className="text-[10px] text-slate-500">
+                  Threshold: &gt; {headcount.staleDays} days old
+                </span>
+              </div>
+              <div className="divide-y divide-amber-100 border border-amber-200/60 rounded-xl overflow-hidden bg-white">
+                {headcount.staleHouseholds.map((item) => (
+                  <div
+                    key={item.householdId}
+                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-amber-50/30 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 text-xs">{item.householdName}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            item.status === 'yes'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}
+                        >
+                          {item.status === 'yes'
+                            ? `Confirmed (${item.partySize} guests)`
+                            : `Tentative (${item.partySize} guests)`}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                        <span>Contact: <strong className="text-slate-700">{item.primaryContactName}</strong></span>
+                        {item.phone && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <a
+                              href={`tel:${item.phone}`}
+                              className="text-rose-600 hover:underline font-mono inline-flex items-center gap-1"
+                            >
+                              <Phone className="w-3 h-3" />
+                              <span>{item.phone}</span>
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-200">
+                        ⚠️ {item.daysAgo} days ago
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

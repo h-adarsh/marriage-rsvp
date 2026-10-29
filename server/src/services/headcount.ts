@@ -15,6 +15,17 @@ export interface HeadcountHouseholdBreakdown {
   noResponse: number;
 }
 
+export interface StaleHouseholdItem {
+  householdId: string;
+  householdName: string;
+  primaryContactName: string;
+  phone: string | null;
+  status: 'yes' | 'maybe';
+  partySize: number;
+  respondedAt: string;
+  daysAgo: number;
+}
+
 export interface HeadcountResult {
   functionId: string;
   invitedCount: number; // Unit: Households
@@ -29,6 +40,7 @@ export interface HeadcountResult {
   maybePct: number;
   staleCount: number;
   staleDays: number;
+  staleHouseholds: StaleHouseholdItem[];
   households: HeadcountHouseholdBreakdown;
   formula: string;
 }
@@ -41,6 +53,9 @@ export function calculateHeadcountFromRows(
   functionId: string,
   rows: Array<{
     householdId: string;
+    householdName?: string;
+    primaryContactName?: string;
+    phone?: string | null;
     expectedPartySize: number;
     rsvpStatus: 'yes' | 'no' | 'maybe' | null;
     rsvpPartySize: number | null;
@@ -72,6 +87,7 @@ export function calculateHeadcountFromRows(
   let noResponseHouseholds = 0;
 
   let staleCount = 0;
+  const staleHouseholds: StaleHouseholdItem[] = [];
 
   for (const row of rows) {
     const expected = row.expectedPartySize || 1;
@@ -86,6 +102,17 @@ export function calculateHeadcountFromRows(
 
       if (row.rsvpRespondedAt && new Date(row.rsvpRespondedAt).getTime() < staleThresholdMs) {
         staleCount += 1;
+        const respTime = new Date(row.rsvpRespondedAt).getTime();
+        staleHouseholds.push({
+          householdId: row.householdId,
+          householdName: row.householdName || 'Unknown Household',
+          primaryContactName: row.primaryContactName || '',
+          phone: row.phone || null,
+          status: 'yes',
+          partySize: actualSize,
+          respondedAt: new Date(row.rsvpRespondedAt).toISOString(),
+          daysAgo: Math.max(0, Math.floor((nowMs - respTime) / (24 * 60 * 60 * 1000))),
+        });
       }
     } else if (row.rsvpStatus === 'maybe') {
       maybeHouseholds += 1;
@@ -94,6 +121,17 @@ export function calculateHeadcountFromRows(
 
       if (row.rsvpRespondedAt && new Date(row.rsvpRespondedAt).getTime() < staleThresholdMs) {
         staleCount += 1;
+        const respTime = new Date(row.rsvpRespondedAt).getTime();
+        staleHouseholds.push({
+          householdId: row.householdId,
+          householdName: row.householdName || 'Unknown Household',
+          primaryContactName: row.primaryContactName || '',
+          phone: row.phone || null,
+          status: 'maybe',
+          partySize: actualSize,
+          respondedAt: new Date(row.rsvpRespondedAt).toISOString(),
+          daysAgo: Math.max(0, Math.floor((nowMs - respTime) / (24 * 60 * 60 * 1000))),
+        });
       }
     } else if (row.rsvpStatus === 'no') {
       declinedHouseholds += 1;
@@ -103,6 +141,9 @@ export function calculateHeadcountFromRows(
       noResponseHeadcount += expected;
     }
   }
+
+  // Sort stale households by staleness descending (oldest first)
+  staleHouseholds.sort((a, b) => b.daysAgo - a.daysAgo);
 
   const planningEstimate = confirmedHeadcount + Math.floor((maybePct / 100) * maybeHeadcount);
   const formula = `Planning Estimate = Confirmed (${confirmedHeadcount}) + ${maybePct}% of Maybe (${maybeHeadcount}) = ${planningEstimate} guests`;
@@ -121,6 +162,7 @@ export function calculateHeadcountFromRows(
     maybePct,
     staleCount,
     staleDays,
+    staleHouseholds,
     households: {
       total: rows.length,
       confirmed: confirmedHouseholds,
@@ -142,6 +184,9 @@ export async function getFunctionHeadcount(
   const rows = await db
     .select({
       householdId: householdFunctions.householdId,
+      householdName: households.name,
+      primaryContactName: households.primaryContactName,
+      phone: households.phone,
       expectedPartySize: households.expectedPartySize,
       rsvpStatus: rsvps.status,
       rsvpPartySize: rsvps.partySize,

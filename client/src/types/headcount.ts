@@ -6,6 +6,17 @@ export interface HeadcountHouseholdBreakdown {
   noResponse: number;
 }
 
+export interface StaleHouseholdItem {
+  householdId: string;
+  householdName: string;
+  primaryContactName: string;
+  phone: string | null;
+  status: 'yes' | 'maybe';
+  partySize: number;
+  respondedAt: string;
+  daysAgo: number;
+}
+
 export interface HeadcountData {
   functionId: string;
   functionName: string;
@@ -22,6 +33,7 @@ export interface HeadcountData {
   maybePct: number;
   staleCount: number;
   staleDays: number;
+  staleHouseholds: StaleHouseholdItem[];
   households: HeadcountHouseholdBreakdown;
   formula: string;
 }

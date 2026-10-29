@@ -157,20 +157,37 @@ functionsRouter.get('/:id/invitations', async (req: Request, res: Response): Pro
         householdId: rsvps.householdId,
         status: rsvps.status,
         partySize: rsvps.partySize,
+        respondedAt: rsvps.respondedAt,
       })
       .from(rsvps)
       .where(eq(rsvps.functionId, functionId));
 
     const rsvpMap = new Map(rsvpRows.map((r) => [r.householdId, r]));
 
-    // 4. Map to result array with invited flag and reply status
+    const rawStaleDays = req.query.staleDays !== undefined ? Number(req.query.staleDays) : 14;
+    const staleDays = isNaN(rawStaleDays) || rawStaleDays < 1 ? 14 : Math.round(rawStaleDays);
+    const nowMs = Date.now();
+    const staleCutoffMs = nowMs - staleDays * 24 * 60 * 60 * 1000;
+
+    // 4. Map to result array with invited flag, reply status, and stale metrics
     const result = allHouseholds.map((h) => {
       const rsvp = rsvpMap.get(h.id);
+      const isReplied = Boolean(rsvp && (rsvp.status === 'yes' || rsvp.status === 'maybe'));
+      const isStale = Boolean(
+        isReplied && rsvp?.respondedAt && new Date(rsvp.respondedAt).getTime() < staleCutoffMs
+      );
+      const daysAgo = rsvp?.respondedAt
+        ? Math.max(0, Math.floor((nowMs - new Date(rsvp.respondedAt).getTime()) / (24 * 60 * 60 * 1000)))
+        : null;
+
       return {
         ...h,
         invited: assignedSet.has(h.id),
         rsvpStatus: rsvp ? rsvp.status : null,
         rsvpPartySize: rsvp ? rsvp.partySize : null,
+        rsvpRespondedAt: rsvp?.respondedAt || null,
+        isStale,
+        daysAgo,
       };
     });
 

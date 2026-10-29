@@ -146,6 +146,20 @@ describe('Task T3.1 & T3.2: Headcount Calculation Engine (Pure Arithmetic Verifi
     // Stale responses (> 14 days): hh-3 (20 days) and hh-6 (18 days) = 2
     expect(result.staleCount).toBe(2);
     expect(result.staleDays).toBe(14);
+    expect(result.staleHouseholds).toHaveLength(2);
+    expect(result.staleHouseholds.map((h) => h.householdId)).toEqual(['hh-3', 'hh-6']);
+    expect(result.staleHouseholds[0]).toMatchObject({
+      householdId: 'hh-3',
+      status: 'yes',
+      partySize: 2,
+    });
+    expect(result.staleHouseholds[0].daysAgo).toBeGreaterThanOrEqual(19);
+    expect(result.staleHouseholds[1]).toMatchObject({
+      householdId: 'hh-6',
+      status: 'maybe',
+      partySize: 2,
+    });
+    expect(result.staleHouseholds[1].daysAgo).toBeGreaterThanOrEqual(17);
   });
 
   it('accurately computes planning estimates across different slider percentages', () => {

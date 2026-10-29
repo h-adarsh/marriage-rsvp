@@ -411,8 +411,42 @@ Both `tests/unit/headcount.test.ts`, `tests/integration/headcount.test.ts`, and 
 ---
 
 ## 3. Verdict (Tasks T3.6 & T3.7)
-**Tasks T3.6 and T3.7 COMPLETE & ACCEPTED.**  
-Next task in sequence: **T3.5 (Stale RSVP indicators & filters)** or **Milestone 4 (Task T4.1 Venue Check-In Backend)**.
+**Tasks T3.6 and T3.7 COMPLETE & ACCEPTED.**
+
+---
+
+# Task T3.5: Stale RSVP Indicators & Filters on Dashboard and Guest Lists
+
+## 1. Commands Run and Results
+
+| Command | Status | Notes / Output |
+| :--- | :--- | :--- |
+| `npm run typecheck --workspace=client` | **PASS** | 0 TypeScript errors. |
+| `npm run build --workspace=server` | **PASS** | `tsc` compiled server with 0 errors. |
+| `npm run build --workspace=client` | **PASS** | `vite build` completed in 2.61s with 0 errors. |
+| `npm run test --workspace=server tests/unit/headcount.test.ts` | **PASS** | 5 unit tests passing, verifying `staleHouseholds` extraction and days ago calculation. |
+| `npm run test --workspace=server tests/integration/headcount.test.ts` | **PASS** | 6 integration tests passing, verifying `GET /api/functions/:id/headcount` returns structured `staleHouseholds` sorted by staleness descending. |
+| `npm run test --workspace=server tests/integration/function_invitations.test.ts` | **PASS** | 22 integration tests passing, verifying `isStale: true` and `daysAgo` for >14d RSVPs, `?staleDays` threshold customization, and 'no' immunity. |
+| `npm test` | **PASS** | **23 test files, 169 passing tests (100% pass rate)**. |
+
+---
+
+## 2. Acceptance Criteria & Implementation Matrix
+
+| Requirement / Acceptance Criterion | Implementation Details | Verification Evidence |
+| :--- | :--- | :--- |
+| **Stale Calculation Formula** | $\text{is\_stale} = (\text{status} \in \{\text{'yes'}, \text{'maybe'}\}) \land (\text{responded\_at} < \text{NOW}() - N\text{ days})$. Default $N = 14$ days. Declined (`no`) and unresponded are not marked stale. | Unit tests in `headcount.test.ts` & integration tests in `function_invitations.test.ts`. |
+| **Backend Headcount Payload** | `GET /api/functions/:id/headcount` returns `staleCount`, `staleDays`, and `staleHouseholds: StaleHouseholdItem[]` containing household ID, name, primary contact, phone, status, party size, respondedAt, and daysAgo, sorted by staleness descending. | Integration test in `headcount.test.ts`. |
+| **Backend Invitation List Payload** | `GET /api/functions/:id/invitations` returns `isStale: boolean` and `daysAgo: number | null` for every household. Supports configurable `?staleDays=N` query parameter. | Integration test in `function_invitations.test.ts`. |
+| **Dashboard Stale Breakdown Drawer** | `HeadcountDashboard.tsx` features an interactive toggle button on the Stale RSVP banner: `"View Stale Responses (N)"` / `"Hide Stale List"`. Opens drawer showing stale households, contact info, one-tap `tel:` phone links, and days ago warning badges. | Tested in UI and client typecheck. |
+| **Guest List Stale Tab & Badges** | `FunctionInvitationsModal.tsx` provides a dedicated `Stale (N)` filter tab in the toolbar and renders an amber `⚠️ Stale (Xd)` warning badge in the reply status column. | Tested in UI and client typecheck. |
+
+---
+
+## 3. Verdict (Task T3.5 & Milestone 3)
+**Task T3.5 COMPLETE & ACCEPTED. Milestone 3 is now 100% complete!**  
+Next task in sequence: **Milestone 4: Task T4.1 (Venue Check-In Backend: `checkins` table schema, migration, and arrival APIs)**.
+
 
 
 

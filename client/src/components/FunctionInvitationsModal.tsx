@@ -27,7 +27,7 @@ interface FunctionInvitationsModalProps {
   onInvitationsUpdated?: () => void;
 }
 
-type FilterTab = 'all' | 'invited' | 'not_invited' | 'replied';
+type FilterTab = 'all' | 'invited' | 'not_invited' | 'replied' | 'stale';
 
 export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> = ({
   isOpen,
@@ -117,11 +117,15 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
     let noCount = 0;
     let maybeCount = 0;
     let repliedCount = 0;
+    let staleCount = 0;
 
     for (const h of households) {
       const isInvited = invitedIds.has(h.id);
       if (isInvited) {
         invitedCount++;
+      }
+      if (isInvited && h.isStale) {
+        staleCount++;
       }
       if (h.rsvpStatus === 'yes') {
         yesCount++;
@@ -145,6 +149,7 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
       noCount,
       maybeCount,
       repliedCount,
+      staleCount,
     };
   }, [households, invitedIds]);
 
@@ -159,6 +164,7 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
       if (activeTab === 'invited' && !isInvited) return false;
       if (activeTab === 'not_invited' && isInvited) return false;
       if (activeTab === 'replied' && !h.rsvpStatus) return false;
+      if (activeTab === 'stale' && (!isInvited || !h.isStale)) return false;
 
       // Search filter
       if (!q) return true;
@@ -399,6 +405,15 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
             >
               Replied ({stats.repliedCount})
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('stale')}
+              className={`px-2.5 py-1 rounded-lg transition-all ${
+                activeTab === 'stale' ? 'bg-white text-amber-800 font-bold shadow-sm' : 'hover:text-slate-900'
+              }`}
+            >
+              Stale ({stats.staleCount})
+            </button>
           </div>
         </div>
 
@@ -510,7 +525,15 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
                       {/* Reply Status Badge & Reset Action */}
                       <td className="py-2.5 px-3 text-right">
                         {h.rsvpStatus === 'yes' ? (
-                          <div className="inline-flex items-center justify-end gap-1.5">
+                          <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                            {h.isStale && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                                title={`RSVP submitted ${h.daysAgo} days ago without updates`}
+                              >
+                                ⚠️ Stale ({h.daysAgo}d)
+                              </span>
+                            )}
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                               <Check className="w-3 h-3" />
                               <span>Attending ({h.rsvpPartySize || h.expectedPartySize})</span>
@@ -531,7 +554,15 @@ export const FunctionInvitationsModal: React.FC<FunctionInvitationsModalProps> =
                             </button>
                           </div>
                         ) : h.rsvpStatus === 'maybe' ? (
-                          <div className="inline-flex items-center justify-end gap-1.5">
+                          <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                            {h.isStale && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                                title={`RSVP submitted ${h.daysAgo} days ago without updates`}
+                              >
+                                ⚠️ Stale ({h.daysAgo}d)
+                              </span>
+                            )}
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                               <HelpCircle className="w-3 h-3" />
                               <span>Maybe</span>

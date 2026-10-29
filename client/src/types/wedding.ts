@@ -42,5 +42,8 @@ export interface FunctionInvitationHousehold {
   invited: boolean;
   rsvpStatus: 'yes' | 'no' | 'maybe' | null;
   rsvpPartySize: number | null;
+  rsvpRespondedAt?: string | null;
+  isStale?: boolean;
+  daysAgo?: number | null;
 }
 

@@ -524,6 +524,55 @@ describe('Task T2.1: Function Invitation Assignments (household_functions)', () 
     expect(a1After?.invited).toBe(true);
     expect(a2After?.invited).toBe(false);
   });
+
+  it('GET /api/functions/:id/invitations accurately flags stale RSVPs (>14 days) and returns daysAgo', async () => {
+    // Household A1 is invited. Create an RSVP with respondedAt 20 days ago (stale)
+    await db.delete(rsvps).where(and(eq(rsvps.functionId, functionAId), eq(rsvps.householdId, householdA1Id)));
+    await db.insert(rsvps).values({
+      id: crypto.randomUUID(),
+      functionId: functionAId,
+      householdId: householdA1Id,
+      status: 'yes',
+      partySize: 3,
+      vegCount: 2,
+      nonvegCount: 1,
+      respondedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+    });
+
+    // Default stale threshold (14 days)
+    const resDefault = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+
+    expect(resDefault.status).toBe(200);
+    const a1 = resDefault.body.find((h: any) => h.id === householdA1Id);
+    expect(a1).toBeDefined();
+    expect(a1.rsvpStatus).toBe('yes');
+    expect(a1.isStale).toBe(true);
+    expect(a1.daysAgo).toBeGreaterThanOrEqual(19);
+
+    // Custom threshold: ?staleDays=30 -> 20 days is NOT stale
+    const res30 = await request(app)
+      .get(`/api/functions/${functionAId}/invitations?staleDays=30`)
+      .set('Cookie', cookieA);
+
+    expect(res30.status).toBe(200);
+    const a1Custom = res30.body.find((h: any) => h.id === householdA1Id);
+    expect(a1Custom.isStale).toBe(false);
+    expect(a1Custom.daysAgo).toBeGreaterThanOrEqual(19);
+
+    // Household with 'no' response 25 days ago is NEVER stale
+    await db.update(rsvps)
+      .set({ status: 'no', partySize: 0, respondedAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000) })
+      .where(and(eq(rsvps.functionId, functionAId), eq(rsvps.householdId, householdA1Id)));
+
+    const resNo = await request(app)
+      .get(`/api/functions/${functionAId}/invitations`)
+      .set('Cookie', cookieA);
+    const a1No = resNo.body.find((h: any) => h.id === householdA1Id);
+    expect(a1No.rsvpStatus).toBe('no');
+    expect(a1No.isStale).toBe(false);
+  });
 });
 
 

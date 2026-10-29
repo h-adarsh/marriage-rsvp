@@ -269,6 +269,22 @@ describe('Task T3.1 & T3.2 Integration Tests: Headcount Calculation API (GET /ap
     // Stale responses (> 14 days): households 3 and 6 = 2
     expect(data.staleCount).toBe(2);
     expect(data.staleDays).toBe(14);
+    expect(data.staleHouseholds).toHaveLength(2);
+    expect(data.staleHouseholds.map((h: any) => h.householdId)).toEqual([householdIds[2], householdIds[5]]);
+    expect(data.staleHouseholds[0]).toMatchObject({
+      householdId: householdIds[2],
+      householdName: 'Household 3',
+      status: 'yes',
+      partySize: 2,
+    });
+    expect(data.staleHouseholds[0].daysAgo).toBeGreaterThanOrEqual(19);
+    expect(data.staleHouseholds[1]).toMatchObject({
+      householdId: householdIds[5],
+      householdName: 'Household 6',
+      status: 'maybe',
+      partySize: 2,
+    });
+    expect(data.staleHouseholds[1].daysAgo).toBeGreaterThanOrEqual(17);
   });
 
   it('updates planning estimate dynamically when custom query parameters are provided', async () => {

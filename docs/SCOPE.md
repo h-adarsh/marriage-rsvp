@@ -97,7 +97,7 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 - [ ] Confirmed headcount strictly excludes "Maybe" and "No Response" entries.
 - [ ] Veg and Non-Veg totals are calculated exclusively from Confirmed guests.
 - [ ] Planning Estimate is calculated and displayed in headcount (people): $\text{Confirmed Headcount} + \lfloor \frac{P}{100} \times \text{Maybe Headcount} \rfloor$, where $P$ is planner-adjustable (default 50%, with 0% of No Response). The exact formula and percentage are visible on screen.
-- [ ] RSVPs not updated for $N$ days (configurable, default 14) are marked with a "Stale" indicator badge.
+- [x] RSVPs not updated for $N$ days (configurable, default 14) are marked with a "Stale" indicator badge.
 
 ---
 
@@ -158,7 +158,7 @@ The following non-blocking questions from `PROJECT_CONTEXT.md` will be resolved 
 - [x] **T3.2**: Planning estimate calculation & stale RSVP flagging logic (configurable $N$ days, default 14; estimate formula). *[1.5h]*
 - [x] **T3.3**: Planner Dashboard UI (Function switcher, summary cards for Confirmed, Declined, Maybe, No Response, Veg/Non-Veg). *[2.0h]*
 - [x] **T3.4**: Planning estimate interactive controls UI (Adjustable Maybe % slider, explicit formula explanation banner). *[1.5h]*
-- **T3.5**: Stale RSVP indicators & filters on dashboard and guest lists. *[1.5h]*
+- [x] **T3.5**: Stale RSVP indicators & filters on dashboard and guest lists. *[1.5h]*
 - [x] **T3.6**: Caterer CSV export backend (Stream/build CSV, formatted caterer header, formula injection neutralization for `= + - @`). *[2.0h]*
 - [x] **T3.7**: Caterer CSV export button & download trigger in dashboard. *[1.0h]*
 *M3 Subtotal: 11.5 hours*
